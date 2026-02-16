@@ -159,7 +159,7 @@ function selectDate(date) {
         const year = date.getFullYear();
         const month = String(date.getMonth() + 1).padStart(2, '0');
         const day = String(date.getDate()).padStart(2, '0');
-        targetInputElement.value = `${year}-${month}-${day}`;
+        targetInputElement.value = `${year}/${month}/${day}`;
         
         // changeイベントを発火
         const event = new Event('change', { bubbles: true });
@@ -219,37 +219,16 @@ if (typeof window !== 'undefined') {
         }
         processedInputs.add(input);
         
-        // クリックイベントを無効化してカスタムカレンダーを開く
+        // 直接入力（タイピング）を妨げないよう、preventDefaultやblurを削除
         input.addEventListener('click', function(e) {
-            e.preventDefault();
-            e.stopPropagation();
-            e.stopImmediatePropagation();
-            this.blur();
-            openCustomCalendar(this);
-            return false;
+            // アイコン以外の場所をクリックした時はカレンダーを開かない
+            // (input[type="text"]の場合、タイピングを優先)
         }, true);
         
-        // フォーカス時もカスタムカレンダーを開く
-        input.addEventListener('focus', function(e) {
-            e.preventDefault();
-            e.stopPropagation();
-            e.stopImmediatePropagation();
-            this.blur();
-            openCustomCalendar(this);
-            return false;
-        }, true);
-        
-        // mousedownでも防止
-        input.addEventListener('mousedown', function(e) {
-            e.preventDefault();
-            e.stopPropagation();
-            e.stopImmediatePropagation();
-            this.blur();
-            setTimeout(() => {
-                openCustomCalendar(this);
-            }, 10);
-            return false;
-        }, true);
+        // フォーカス時はカレンダーを開かないように変更
+        // input.addEventListener('focus', function(e) {
+        //     openCustomCalendar(this);
+        // }, true);
     }
     
     function setupDateInputs() {
@@ -273,15 +252,17 @@ if (typeof window !== 'undefined') {
         if (todayBtn) todayBtn.addEventListener('click', selectToday);
         if (clearBtn) clearBtn.addEventListener('click', clearDate);
         
-        // カレンダー外をクリックで閉じる
-        const overlay = document.getElementById('custom-calendar-picker');
-        if (overlay) {
-            overlay.addEventListener('click', function(e) {
-                if (e.target === overlay) {
-                    closeCustomCalendar();
-                }
-            });
+    // カレンダー外をクリックで閉じる
+    document.addEventListener('mousedown', function(e) {
+        const picker = document.getElementById('custom-calendar-picker');
+        if (picker && picker.style.display !== 'none') {
+            const container = picker.querySelector('.custom-calendar-container');
+            // ターゲット要素（入力欄）またはカレンダー内をクリックした場合は閉じない
+            if (container && !container.contains(e.target) && targetInputElement !== e.target && !e.target.classList.contains('fa-calendar-alt')) {
+                closeCustomCalendar();
+            }
         }
+    });
     }
     
     // ページが完全に読み込まれてから初期化（非ブロッキング）

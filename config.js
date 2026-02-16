@@ -4,6 +4,10 @@ const SUPABASE_CONFIG = {
     url: "https://uevlguozshzwywzqtsvr.supabase.co",
     key: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVldmxndW96c2h6d3l3enF0c3ZyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTkzMjkzMDcsImV4cCI6MjA3NDkwNTMwN30.hx82K_19c5Mmh9NXCCf15_yGDPLJ5O_XM_CnWuVMyZ8"
 };
+// app.js など他スクリプトから参照できるようグローバルに公開
+if (typeof window !== 'undefined') {
+    window.SUPABASE_CONFIG = SUPABASE_CONFIG;
+}
 
 // 管理者パスワード設定
 // ⚠️ 本番環境では必ず変更してください

@@ -1,0 +1,1121 @@
+// テーブル別カスタムモーダル設定（統合版）
+const TABLE_MODAL_CONFIGS = {
+    // 会社コード（取引先）
+    't_companycode': {
+        displayName: '取引先',
+        icon: 'company',
+        color: {
+            primary: '#3b82f6',
+            secondary: '#2563eb',
+            light: '#dbeafe'
+        },
+        layout: 'triple',
+        sections: [
+            {
+                title: '基本情報',
+                icon: 'fa-building',
+                color: '#3b82f6',
+                fields: [
+                    { name: '取引先名称', label: '名称', type: 'text', required: true, width: 'full' },
+                    { name: '略名称', label: '略称', type: 'text' },
+                    { name: 'ヨミガナ', label: 'カナ', type: 'text' },
+                    { name: '分類', label: '分類', type: 'text' },
+                    { name: '国名', label: '国名', type: 'text' }
+                ]
+            },
+            {
+                title: '連絡先',
+                icon: 'fa-address-book',
+                color: '#10b981',
+                fields: [
+                    { name: '郵便番号', label: '〒', type: 'text', placeholder: '123-4567' },
+                    { name: '電話', label: '電話', type: 'tel' },
+                    { name: '住所1', label: '住所1', type: 'text', width: 'full' },
+                    { name: '住所2', label: '住所2', type: 'text', width: 'full' },
+                    { name: 'FAX', label: 'FAX', type: 'tel' },
+                    { name: '担当者1', label: '担当1', type: 'text' }
+                ]
+            },
+            {
+                title: 'メール・会計',
+                icon: 'fa-envelope',
+                color: '#8b5cf6',
+                fields: [
+                    { name: 'メールアドレス1', label: 'メール1', type: 'email', width: 'full' },
+                    { name: 'メールアドレス2', label: 'メール2', type: 'email', width: 'full' },
+                    { name: '売掛コード', label: '売掛', type: 'text' },
+                    { name: '買掛コード', label: '買掛', type: 'text' }
+                ]
+            }
+        ],
+        svg: `
+            <svg width="80" height="80" viewBox="0 0 100 100" fill="none">
+                <rect x="20" y="30" width="60" height="55" rx="3" fill="#3b82f6" opacity="0.2"/>
+                <rect x="25" y="35" width="50" height="8" rx="2" fill="#3b82f6"/>
+                <rect x="30" y="48" width="8" height="10" rx="1" fill="#60a5fa"/>
+                <rect x="42" y="48" width="8" height="10" rx="1" fill="#60a5fa"/>
+                <rect x="54" y="48" width="8" height="10" rx="1" fill="#60a5fa"/>
+                <rect x="66" y="48" width="8" height="10" rx="1" fill="#60a5fa"/>
+                <rect x="30" y="62" width="8" height="10" rx="1" fill="#60a5fa"/>
+                <rect x="42" y="62" width="8" height="10" rx="1" fill="#60a5fa"/>
+                <rect x="54" y="62" width="8" height="10" rx="1" fill="#60a5fa"/>
+                <rect x="66" y="62" width="8" height="10" rx="1" fill="#60a5fa"/>
+            </svg>
+        `
+    },
+    
+    // 受注情報
+    't_acceptorder': {
+        displayName: '受注情報',
+        icon: 'order',
+        color: {
+            primary: '#10b981',
+            secondary: '#059669',
+            light: '#d1fae5'
+        },
+        layout: 'triple',
+        sections: [
+            {
+                title: '基本情報',
+                icon: 'fa-file-invoice',
+                color: '#10b981',
+                fields: [
+                    { name: 'constructno', label: '工事番号', type: 'text', required: true, width: 'full',
+                      button: { label: '番号取得', onclick: 'openConstructNumberModal' } },
+                    { name: 'constructname', label: '工事名称', type: 'text', required: true, width: 'full' },
+                    { name: 'registerdate', label: '受注登録日', type: 'date', width: 'full' },
+                    { name: 'eigyomanno', label: '営業担当コード', type: 'text', width: 'full' }
+                ]
+            },
+            {
+                title: '金額・日程',
+                icon: 'fa-calendar-dollar',
+                color: '#f59e0b',
+                fields: [
+                    { name: 'orderprice', label: '受注金額', type: 'number', width: 'full' },
+                    { name: 'orderdate', label: '受注日', type: 'date', width: 'full' },
+                    { name: 'deliverydate', label: '納期', type: 'date', width: 'full' }
+                ]
+            },
+            {
+                title: '関連情報',
+                icon: 'fa-link',
+                color: '#6366f1',
+                fields: [
+                    { name: 'ownercode', label: '受注元コード', type: 'text', width: 'full' },
+                    { name: 'usercode', label: '納品先コード', type: 'text', width: 'full' },
+                    { name: 'dealingdocmitsumori', label: '電子見積書', type: 'text', width: 'full' },
+                    { name: 'dealingdocchuumon', label: '電子注文書', type: 'text', width: 'full' },
+                    { name: 'dealingdocseikyu', label: '電子請求書', type: 'text', width: 'full' }
+                ]
+            }
+        ],
+        svg: `
+            <svg width="80" height="80" viewBox="0 0 100 100" fill="none">
+                <rect x="25" y="20" width="50" height="65" rx="4" fill="white" stroke="#10b981" stroke-width="3"/>
+                <line x1="35" y1="35" x2="65" y2="35" stroke="#10b981" stroke-width="2"/>
+                <line x1="35" y1="45" x2="65" y2="45" stroke="#10b981" stroke-width="2"/>
+                <line x1="35" y1="55" x2="55" y2="55" stroke="#10b981" stroke-width="2"/>
+                <circle cx="75" cy="75" r="15" fill="#10b981"/>
+                <path d="M70 75 L73 78 L80 70" stroke="white" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+            </svg>
+        `
+    },
+    
+    // スタッフコード
+    't_staffcode': {
+        displayName: 'スタッフ情報',
+        icon: 'staff',
+        color: {
+            primary: '#667eea',
+            secondary: '#764ba2',
+            light: '#eef2ff'
+        },
+        layout: 'triple',
+        sections: [
+            {
+                title: '基本情報',
+                icon: 'fa-user',
+                color: '#667eea',
+                fields: [
+                    { name: 'staffname', label: '氏名', type: 'text', required: true },
+                    { name: 'staffcode', label: 'コード', type: 'text', required: true },
+                    { name: 'reading', label: 'ふりがな', type: 'text' },
+                    { name: 'loginid', label: 'ログインID', type: 'text' }
+                ]
+            },
+            {
+                title: '所属・役職',
+                icon: 'fa-sitemap',
+                color: '#8b5cf6',
+                fields: [
+                    { name: 'depacode', label: '所属部署', type: 'text' },
+                    { name: 'workdepa', label: '作業部署', type: 'text' },
+                    { name: 'position', label: '役職', type: 'text' },
+                    { name: 'nuyusyadate', label: '入社日', type: 'date' }
+                ]
+            },
+            {
+                title: '連絡先',
+                icon: 'fa-address-book',
+                color: '#48bb78',
+                fields: [
+                    { name: 'mailaddress', label: 'メール', type: 'email', width: 'full' },
+                    { name: 'telno', label: '電話(内線)', type: 'tel' },
+                    { name: 'cellphone', label: '携帯電話', type: 'tel' },
+                    { name: 'internaltelno', label: '内線(直通)', type: 'tel' }
+                ]
+            }
+        ],
+        svg: `
+            <svg width="80" height="80" viewBox="0 0 100 100" fill="none">
+                <circle cx="50" cy="35" r="15" fill="#667eea"/>
+                <path d="M30 75 Q30 55 50 55 Q70 55 70 75" fill="#764ba2"/>
+            </svg>
+        `
+    },
+    
+    // 機械コード
+    't_machinecode': {
+        displayName: '機械コード',
+        icon: 'machine',
+        color: {
+            primary: '#6366f1',
+            secondary: '#4f46e5',
+            light: '#eef2ff'
+        },
+        layout: 'single',
+        sections: [
+            {
+                title: '基本情報',
+                icon: 'fa-cog',
+                color: '#6366f1',
+                fields: [
+                    { name: 'machinecode', label: '機械コード', type: 'text', required: true },
+                    { name: 'machinename', label: '機械名', type: 'text', required: true },
+                    { name: 'machinenameeng', label: '機械名（英語）', type: 'text' }
+                ]
+            }
+        ],
+        svg: `
+            <svg width="80" height="80" viewBox="0 0 100 100" fill="none">
+                <rect x="20" y="30" width="60" height="45" rx="4" fill="#6366f1" opacity="0.2"/>
+                <rect x="30" y="40" width="40" height="25" rx="2" fill="#6366f1"/>
+                <circle cx="35" cy="52" r="3" fill="white"/>
+                <circle cx="65" cy="52" r="3" fill="white"/>
+                <rect x="45" y="50" width="10" height="4" rx="2" fill="white"/>
+                <path d="M25 75 L35 75 L35 85 L25 85 Z" fill="#4f46e5"/>
+                <path d="M65 75 L75 75 L75 85 L65 85 Z" fill="#4f46e5"/>
+            </svg>
+        `
+    },
+    
+    // 部署コード
+    't_departmentcode': {
+        displayName: '部署コード',
+        icon: 'department',
+        color: {
+            primary: '#8b5cf6',
+            secondary: '#7c3aed',
+            light: '#ede9fe'
+        },
+        layout: 'single',
+        sections: [
+            {
+                title: '部署情報',
+                icon: 'fa-sitemap',
+                color: '#8b5cf6',
+                fields: [
+                    { name: 'depacode', label: '部署コード', type: 'text', required: true },
+                    { name: 'depaname', label: '部署名', type: 'text', required: true },
+                    { name: 'depanameeng', label: '部署名（英語）', type: 'text' },
+                    { name: 'depaleader', label: '部署長', type: 'text' }
+                ]
+            }
+        ],
+        svg: `
+            <svg width="80" height="80" viewBox="0 0 100 100" fill="none">
+                <circle cx="50" cy="30" r="8" fill="#8b5cf6"/>
+                <circle cx="30" cy="60" r="6" fill="#a78bfa"/>
+                <circle cx="50" cy="60" r="6" fill="#a78bfa"/>
+                <circle cx="70" cy="60" r="6" fill="#a78bfa"/>
+                <line x1="50" y1="38" x2="30" y2="54" stroke="#8b5cf6" stroke-width="2"/>
+                <line x1="50" y1="38" x2="50" y2="54" stroke="#8b5cf6" stroke-width="2"/>
+                <line x1="50" y1="38" x2="70" y2="54" stroke="#8b5cf6" stroke-width="2"/>
+                <circle cx="25" cy="80" r="4" fill="#c4b5fd"/>
+                <circle cx="35" cy="80" r="4" fill="#c4b5fd"/>
+                <circle cx="45" cy="80" r="4" fill="#c4b5fd"/>
+                <circle cx="55" cy="80" r="4" fill="#c4b5fd"/>
+                <circle cx="65" cy="80" r="4" fill="#c4b5fd"/>
+                <circle cx="75" cy="80" r="4" fill="#c4b5fd"/>
+            </svg>
+        `
+    },
+    
+    // 工事番号
+    't_constructionnumber': {
+        displayName: '工事番号',
+        icon: 'construction',
+        color: {
+            primary: '#f59e0b',
+            secondary: '#d97706',
+            light: '#fef3c7'
+        },
+        layout: 'double',
+        sections: [
+            {
+                title: '番号情報',
+                icon: 'fa-hashtag',
+                color: '#f59e0b',
+                fields: [
+                    { name: 'constructionnumber', label: '工事番号', type: 'text', required: true },
+                    { name: 'usestatus', label: '使用状況', type: 'select', options: ['未使用', '使用中', '完了'] },
+                    { name: 'registerdate', label: '登録日', type: 'date' }
+                ]
+            },
+            {
+                title: '関連情報',
+                icon: 'fa-info-circle',
+                color: '#6366f1',
+                fields: [
+                    { name: 'constructionname', label: '工事名', type: 'text' },
+                    { name: 'remarks', label: '備考', type: 'textarea' }
+                ]
+            }
+        ],
+        svg: `
+            <svg width="80" height="80" viewBox="0 0 100 100" fill="none">
+                <rect x="30" y="40" width="15" height="40" rx="2" fill="#f59e0b"/>
+                <rect x="55" y="30" width="15" height="50" rx="2" fill="#fbbf24"/>
+                <polygon points="30,40 37.5,25 45,40" fill="#f59e0b"/>
+                <polygon points="55,30 62.5,15 70,30" fill="#fbbf24"/>
+                <rect x="25" y="80" width="50" height="5" rx="2" fill="#d97706"/>
+            </svg>
+        `
+    },
+    
+    // 会計コード
+    't_accountcode': {
+        displayName: '会計コード',
+        icon: 'accounting',
+        color: {
+            primary: '#ec4899',
+            secondary: '#db2777',
+            light: '#fce7f3'
+        },
+        layout: 'single',
+        sections: [
+            {
+                title: '会計情報',
+                icon: 'fa-calculator',
+                color: '#ec4899',
+                fields: [
+                    { name: 'accountcode', label: '会計コード', type: 'text', required: true },
+                    { name: 'accountname', label: '勘定科目名', type: 'text', required: true },
+                    { name: 'accounttype', label: '科目区分', type: 'select', options: ['資産', '負債', '資本', '収益', '費用'] },
+                    { name: 'parentaccountcode', label: '親会計コード', type: 'text' }
+                ]
+            }
+        ],
+        svg: `
+            <svg width="80" height="80" viewBox="0 0 100 100" fill="none">
+                <rect x="25" y="25" width="50" height="50" rx="4" fill="#ec4899" opacity="0.2"/>
+                <rect x="30" y="30" width="40" height="8" rx="2" fill="#ec4899"/>
+                <rect x="30" y="42" width="15" height="6" rx="1" fill="#f9a8d4"/>
+                <rect x="30" y="52" width="15" height="6" rx="1" fill="#f9a8d4"/>
+                <rect x="30" y="62" width="15" height="6" rx="1" fill="#f9a8d4"/>
+                <rect x="50" y="42" width="15" height="6" rx="1" fill="#f9a8d4"/>
+                <rect x="50" y="52" width="15" height="6" rx="1" fill="#f9a8d4"/>
+                <rect x="50" y="62" width="15" height="6" rx="1" fill="#f9a8d4"/>
+            </svg>
+        `
+    },
+    
+    // 材料コード
+    't_materialcode': {
+        displayName: '材料コード',
+        icon: 'material',
+        color: {
+            primary: '#06b6d4',
+            secondary: '#0891b2',
+            light: '#cffafe'
+        },
+        layout: 'double',
+        sections: [
+            {
+                title: '材料情報',
+                icon: 'fa-box',
+                color: '#06b6d4',
+                fields: [
+                    { name: 'materialcode', label: '材料コード', type: 'text', required: true, width: 'full' },
+                    { name: 'materialname', label: '材料名', type: 'text', required: true, width: 'full' },
+                    { name: 'specification', label: '規格', type: 'text', width: 'full' }
+                ]
+            },
+            {
+                title: '在庫・単価',
+                icon: 'fa-warehouse',
+                color: '#f59e0b',
+                fields: [
+                    { name: 'unitprice', label: '単価', type: 'number', width: 'full' },
+                    { name: 'stockquantity', label: '在庫数', type: 'number', width: 'full' },
+                    { name: 'unit', label: '単位', type: 'text', width: 'full' }
+                ]
+            }
+        ],
+        svg: `
+            <svg width="80" height="80" viewBox="0 0 100 100" fill="none">
+                <path d="M50 25 L70 35 L70 65 L50 75 L30 65 L30 35 Z" fill="#06b6d4" opacity="0.3"/>
+                <path d="M50 25 L70 35 L50 45 L30 35 Z" fill="#06b6d4"/>
+                <path d="M30 35 L30 65 L50 75 L50 45 Z" fill="#0891b2"/>
+                <path d="M50 45 L50 75 L70 65 L70 35 Z" fill="#22d3ee"/>
+            </svg>
+        `
+    },
+    
+    // コンピュータデバイス
+    't_computerdevice': {
+        displayName: 'デバイス情報',
+        icon: 'laptop',
+        color: {
+            primary: '#4b5563',
+            secondary: '#1f2937',
+            light: '#f3f4f6'
+        },
+        layout: 'triple',
+        sections: [
+            {
+                title: 'ログイン情報',
+                icon: 'fa-desktop',
+                color: '#4b5563',
+                fields: [
+                    { name: 'LoginID', label: 'マシン名', type: 'text', required: true, width: 'full' },
+                    { name: 'LoginPassword', label: 'パスワード', type: 'text', width: 'full' },
+                    { name: 'TcpIp', label: 'IPアドレス', type: 'text', width: 'full' }
+                ]
+            },
+            {
+                title: '使用者情報',
+                icon: 'fa-user-cog',
+                color: '#3b82f6',
+                fields: [
+                    { name: 'StaffName', label: '使用者名', type: 'text', width: 'full' },
+                    { name: 'StaffCode', label: 'スタッフコード', type: 'text', width: 'full' },
+                    { name: 'WorkDepa', label: '作業部署', type: 'text', width: 'full' }
+                ]
+            },
+            {
+                title: 'システム設定',
+                icon: 'fa-cogs',
+                color: '#10b981',
+                fields: [
+                    { name: 'SQLusername', label: 'SQLユーザー', type: 'text', width: 'full' },
+                    { name: 'SQLusergroup', label: 'SQLグループ', type: 'text', width: 'full' },
+                    { name: 'TelNo', label: '電話番号', type: 'tel', width: 'full' }
+                ]
+            }
+        ],
+        svg: `
+            <svg width="80" height="80" viewBox="0 0 100 100" fill="none">
+                <rect x="20" y="25" width="60" height="40" rx="4" fill="#4b5563" opacity="0.2"/>
+                <rect x="25" y="30" width="50" height="30" rx="2" fill="#4b5563"/>
+                <rect x="15" y="65" width="70" height="6" rx="2" fill="#1f2937"/>
+                <rect x="40" y="65" width="20" height="10" fill="#1f2937"/>
+            </svg>
+        `
+    },
+
+    // 通貨コード
+    't_currencycode': {
+        displayName: '通貨コード',
+        icon: 'currency',
+        color: {
+            primary: '#10b981',
+            secondary: '#059669',
+            light: '#d1fae5'
+        },
+        layout: 'single',
+        sections: [
+            {
+                title: '通貨情報',
+                icon: 'fa-money-bill-wave',
+                color: '#10b981',
+                fields: [
+                    { name: 'CurrencyCode', label: '通貨コード', type: 'text', required: true },
+                    { name: 'CurrencyName', label: '通貨名', type: 'text', required: true },
+                    { name: 'CurrencySymbol', label: '記号', type: 'text' },
+                    { name: 'ExchangeRate', label: '換算レート', type: 'number' }
+                ]
+            }
+        ],
+        svg: `
+            <svg width="80" height="80" viewBox="0 0 100 100" fill="none">
+                <circle cx="50" cy="50" r="35" fill="#10b981" opacity="0.2"/>
+                <text x="50" y="65" font-family="Arial" font-size="40" fill="#10b981" text-anchor="middle" font-weight="bold">¥</text>
+            </svg>
+        `
+    },
+
+    // 機種記号
+    't_machinemarkforsaiban': {
+        displayName: '機種記号',
+        icon: 'machine',
+        color: {
+            primary: '#6366f1',
+            secondary: '#4f46e5',
+            light: '#eef2ff'
+        },
+        layout: 'single',
+        sections: [
+            {
+                title: '機種情報',
+                icon: 'fa-tag',
+                color: '#6366f1',
+                fields: [
+                    { name: 'MachineMark', label: '機種記号', type: 'text', required: true },
+                    { name: 'MachineName', label: '機種名', type: 'text', required: true }
+                ]
+            }
+        ],
+        svg: `
+            <svg width="80" height="80" viewBox="0 0 100 100" fill="none">
+                <path d="M20 30 L80 30 L80 70 L20 70 Z" fill="#6366f1" opacity="0.2"/>
+                <circle cx="35" cy="50" r="8" fill="#6366f1"/>
+                <circle cx="65" cy="50" r="8" fill="#6366f1"/>
+            </svg>
+        `
+    },
+
+    // ユニットコード
+    't_machineunitcode': {
+        displayName: 'ユニットコード',
+        icon: 'unit',
+        color: {
+            primary: '#f59e0b',
+            secondary: '#d97706',
+            light: '#fef3c7'
+        },
+        layout: 'single',
+        sections: [
+            {
+                title: 'ユニット情報',
+                icon: 'fa-puzzle-piece',
+                color: '#f59e0b',
+                fields: [
+                    { name: 'UnitCode', label: 'ユニットコード', type: 'text', required: true },
+                    { name: 'UnitName', label: 'ユニット名', type: 'text', required: true },
+                    { name: 'UnitNameEn', label: 'ユニット名(英語)', type: 'text' }
+                ]
+            }
+        ],
+        svg: `
+            <svg width="80" height="80" viewBox="0 0 100 100" fill="none">
+                <path d="M30 30 H70 V70 H30 Z" fill="#f59e0b" opacity="0.2"/>
+                <rect x="40" y="40" width="20" height="20" fill="#f59e0b"/>
+            </svg>
+        `
+    },
+
+    // 入金情報
+    't_moneyreceipt': {
+        displayName: '入金情報',
+        icon: 'receipt',
+        color: {
+            primary: '#ec4899',
+            secondary: '#db2777',
+            light: '#fce7f3'
+        },
+        layout: 'double',
+        sections: [
+            {
+                title: '入金内容',
+                icon: 'fa-hand-holding-usd',
+                color: '#ec4899',
+                fields: [
+                    { name: 'ReceiptDate', label: '入金日', type: 'date', required: true },
+                    { name: 'ReceiptAmount', label: '入金金額', type: 'number', required: true },
+                    { name: 'CustomerCode', label: '顧客コード', type: 'text' },
+                    { name: 'ConstructNo', label: '工事番号', type: 'text' }
+                ]
+            },
+            {
+                title: '詳細・備考',
+                icon: 'fa-comment-alt',
+                color: '#f472b6',
+                fields: [
+                    { name: 'ReceiptMethod', label: '入金方法', type: 'text', width: 'full' },
+                    { name: 'Remarks', label: '備考', type: 'textarea', width: 'full' }
+                ]
+            }
+        ],
+        svg: `
+            <svg width="80" height="80" viewBox="0 0 100 100" fill="none">
+                <rect x="25" y="20" width="50" height="60" rx="4" fill="#ec4899" opacity="0.2"/>
+                <circle cx="50" cy="45" r="15" fill="#ec4899"/>
+                <text x="50" y="52" font-family="Arial" font-size="20" fill="white" text-anchor="middle" font-weight="bold">¥</text>
+            </svg>
+        `
+    },
+
+    // 購入部品
+    't_purchaseparts': {
+        displayName: '購入部品',
+        icon: 'cogs',
+        color: { primary: '#3b82f6', secondary: '#1d4ed8', light: '#dbeafe' },
+        layout: 'triple',
+        sections: [
+            {
+                title: '部品情報',
+                icon: 'fa-cog',
+                color: '#3b82f6',
+                fields: [
+                    { name: 'PartsCode', label: '部品コード', type: 'text', required: true, width: 'full' },
+                    { name: 'PartsName', label: '部品名称', type: 'text', required: true, width: 'full' },
+                    { name: 'Specification', label: '規格・型式', type: 'text', width: 'full' }
+                ]
+            },
+            {
+                title: 'メーカー・仕入',
+                icon: 'fa-industry',
+                color: '#10b981',
+                fields: [
+                    { name: 'MakerName', label: 'メーカー', type: 'text', width: 'full' },
+                    { name: 'SupplierCode', label: '仕入先コード', type: 'text', width: 'full' },
+                    { name: 'UnitPrice', label: '標準単価', type: 'number', width: 'full' }
+                ]
+            },
+            {
+                title: '管理情報',
+                icon: 'fa-tags',
+                color: '#f59e0b',
+                fields: [
+                    { name: 'Category', label: '分類', type: 'text', width: 'full' },
+                    { name: 'Unit', label: '単位', type: 'text', width: 'full' },
+                    { name: 'Remarks', label: '備考', type: 'textarea', width: 'full' }
+                ]
+            }
+        ],
+        svg: `<svg width="80" height="80" viewBox="0 0 100 100" fill="none"><circle cx="50" cy="50" r="30" stroke="#3b82f6" stroke-width="8" stroke-dasharray="40 10"/><circle cx="50" cy="50" r="10" fill="#3b82f6"/></svg>`
+    },
+
+    // 採番情報
+    't_saiban': {
+        displayName: '採番情報',
+        icon: 'list-ol',
+        color: { primary: '#8b5cf6', secondary: '#6d28d9', light: '#ede9fe' },
+        layout: 'triple',
+        sections: [
+            {
+                title: '基本情報',
+                icon: 'fa-fingerprint',
+                color: '#8b5cf6',
+                fields: [
+                    { name: 'DrawingNo', label: '図面番号', type: 'text', required: true, width: 'full' },
+                    { name: 'Description', label: '品名', type: 'text', width: 'full' },
+                    { name: 'OrderNo', label: '工事番号', type: 'text', width: 'full' }
+                ]
+            },
+            {
+                title: '仕様・材質',
+                icon: 'fa-layer-group',
+                color: '#ec4899',
+                fields: [
+                    { name: 'Material', label: '材質', type: 'text', width: 'full' },
+                    { name: 'MaterialWeight', label: '素材重量', type: 'number', width: 'full' },
+                    { name: 'FinishedWeight', label: '仕上重量', type: 'number', width: 'full' }
+                ]
+            },
+            {
+                title: '履歴・担当',
+                icon: 'fa-user-edit',
+                color: '#10b981',
+                fields: [
+                    { name: 'Designer', label: '設計者', type: 'text', width: 'full' },
+                    { name: 'SaibanDate', label: '採番日', type: 'date', width: 'full' },
+                    { name: 'History1', label: '履歴', type: 'textarea', width: 'full' }
+                ]
+            }
+        ],
+        svg: `<svg width="80" height="80" viewBox="0 0 100 100" fill="none"><rect x="20" y="20" width="60" height="60" rx="8" stroke="#8b5cf6" stroke-width="6"/><path d="M35 40 H65 M35 50 H65 M35 60 H50" stroke="#8b5cf6" stroke-width="6" stroke-linecap="round"/></svg>`
+    },
+
+    // 工程コード
+    't_processcode': {
+        displayName: '工程コード',
+        icon: 'tasks',
+        color: { primary: '#10b981', secondary: '#047857', light: '#d1fae5' },
+        layout: 'double',
+        sections: [
+            {
+                title: '工程情報',
+                icon: 'fa-stream',
+                color: '#10b981',
+                fields: [
+                    { name: 'ProcessCode', label: '工程コード', type: 'text', required: true, width: 'full' },
+                    { name: 'ProcessName', label: '工程名称', type: 'text', required: true, width: 'full' }
+                ]
+            },
+            {
+                title: '設定',
+                icon: 'fa-sliders-h',
+                color: '#3b82f6',
+                fields: [
+                    { name: 'DepartmentCode', label: '担当部署', type: 'text', width: 'full' },
+                    { name: 'SortOrder', label: '表示順', type: 'number', width: 'full' }
+                ]
+            }
+        ],
+        svg: `<svg width="80" height="80" viewBox="0 0 100 100" fill="none"><path d="M20 30 H80 M20 50 H80 M20 70 H80" stroke="#10b981" stroke-width="8" stroke-linecap="round"/><circle cx="25" cy="30" r="5" fill="white"/><circle cx="25" cy="50" r="5" fill="white"/><circle cx="25" cy="70" r="5" fill="white"/></svg>`
+    },
+
+    // 発注情報
+    't_purchase': {
+        displayName: '発注情報',
+        icon: 'shopping-cart',
+        color: { primary: '#f59e0b', secondary: '#b45309', light: '#fef3c7' },
+        layout: 'triple',
+        sections: [
+            {
+                title: '発注基本',
+                icon: 'fa-shopping-basket',
+                color: '#f59e0b',
+                fields: [
+                    { name: 'PurchaseNo', label: '発注番号', type: 'text', required: true, width: 'full' },
+                    { name: 'PurchaseDate', label: '発注日', type: 'date', width: 'full' },
+                    { name: 'SupplierCode', label: '仕入先', type: 'text', width: 'full' }
+                ]
+            },
+            {
+                title: '案件情報',
+                icon: 'fa-project-diagram',
+                color: '#3b82f6',
+                fields: [
+                    { name: 'ConstructNo', label: '工事番号', type: 'text', width: 'full' },
+                    { name: 'OrderPerson', label: '発注者', type: 'text', width: 'full' },
+                    { name: 'DeliveryDate', label: '希望納期', type: 'date', width: 'full' }
+                ]
+            },
+            {
+                title: '金額・状態',
+                icon: 'fa-coins',
+                color: '#10b981',
+                fields: [
+                    { name: 'TotalAmount', label: '合計金額', type: 'number', width: 'full' },
+                    { name: 'Status', label: '状況', type: 'select', options: ['未納', '分納', '完納', '中止'], width: 'full' }
+                ]
+            }
+        ],
+        svg: `<svg width="80" height="80" viewBox="0 0 100 100" fill="none"><path d="M20 20 L30 20 L40 60 H80 L90 30 H35" stroke="#f59e0b" stroke-width="6" fill="none"/><circle cx="45" cy="75" r="7" fill="#f59e0b"/><circle cx="75" cy="75" r="7" fill="#f59e0b"/></svg>`
+    },
+
+    // ユニットコード
+    't_unitcode': {
+        displayName: 'ユニットコード',
+        icon: 'th-large',
+        color: { primary: '#6366f1', secondary: '#4338ca', light: '#e0e7ff' },
+        layout: 'double',
+        sections: [
+            {
+                title: 'ユニット基本',
+                icon: 'fa-cube',
+                color: '#6366f1',
+                fields: [
+                    { name: 'UnitCode', label: 'ユニットコード', type: 'text', required: true, width: 'full' },
+                    { name: 'UnitName', label: 'ユニット名称', type: 'text', required: true, width: 'full' }
+                ]
+            },
+            {
+                title: '詳細設定',
+                icon: 'fa-info-circle',
+                color: '#10b981',
+                fields: [
+                    { name: 'MachineCode', label: '対応機種', type: 'text', width: 'full' },
+                    { name: 'Remarks', label: '備考', type: 'textarea', width: 'full' }
+                ]
+            }
+        ],
+        svg: `<svg width="80" height="80" viewBox="0 0 100 100" fill="none"><rect x="25" y="25" width="20" height="20" fill="#6366f1"/><rect x="55" y="25" width="20" height="20" fill="#6366f1"/><rect x="25" y="55" width="20" height="20" fill="#6366f1"/><rect x="55" y="55" width="20" height="20" fill="#6366f1"/></svg>`
+    },
+
+    // 作業コード
+    't_workcode': {
+        displayName: '作業コード',
+        icon: 'hammer',
+        color: { primary: '#ef4444', secondary: '#b91c1c', light: '#fee2e2' },
+        layout: 'double',
+        sections: [
+            {
+                title: '作業情報',
+                icon: 'fa-tools',
+                color: '#ef4444',
+                fields: [
+                    { name: 'WorkCode', label: '作業コード', type: 'text', required: true, width: 'full' },
+                    { name: 'WorkName', label: '作業名称', type: 'text', required: true, width: 'full' }
+                ]
+            },
+            {
+                title: '単価設定',
+                icon: 'fa-dollar-sign',
+                color: '#f59e0b',
+                fields: [
+                    { name: 'StandardRate', label: '標準単価', type: 'number', width: 'full' },
+                    { name: 'Category', label: '作業分類', type: 'text', width: 'full' }
+                ]
+            }
+        ],
+        svg: `<svg width="80" height="80" viewBox="0 0 100 100" fill="none"><path d="M30 70 L70 30 L80 40 L40 80 Z" fill="#ef4444"/><rect x="20" y="60" width="20" height="20" rx="4" fill="#b91c1c"/></svg>`
+    },
+
+    // 作業部署
+    't_workdepartment': {
+        displayName: '作業部署',
+        icon: 'users',
+        color: { primary: '#8b5cf6', secondary: '#6d28d9', light: '#ede9fe' },
+        layout: 'double',
+        sections: [
+            {
+                title: '部署情報',
+                icon: 'fa-sitemap',
+                color: '#8b5cf6',
+                fields: [
+                    { name: 'DeptCode', label: '部署コード', type: 'text', required: true, width: 'full' },
+                    { name: 'DeptName', label: '部署名称', type: 'text', required: true, width: 'full' }
+                ]
+            },
+            {
+                title: '管理',
+                icon: 'fa-user-tie',
+                color: '#10b981',
+                fields: [
+                    { name: 'Manager', label: '責任者', type: 'text', width: 'full' },
+                    { name: 'Location', label: '場所', type: 'text', width: 'full' }
+                ]
+            }
+        ],
+        svg: `<svg width="80" height="80" viewBox="0 0 100 100" fill="none"><circle cx="50" cy="35" r="15" fill="#8b5cf6"/><path d="M30 75 Q30 55 50 55 Q70 55 70 75" fill="#6d28d9"/></svg>`
+    },
+
+    // 原価集計ビュー
+    'v_cost_summary': {
+        displayName: '原価集計',
+        icon: 'chart-pie',
+        color: { primary: '#10b981', secondary: '#059669', light: '#d1fae5' },
+        layout: 'triple',
+        sections: [
+            {
+                title: '案件概要',
+                icon: 'fa-file-contract',
+                color: '#10b981',
+                fields: [
+                    { name: 'ConstructNo', label: '工事番号', type: 'text', width: 'full' },
+                    { name: 'ConstructName', label: '工事名称', type: 'text', width: 'full' }
+                ]
+            },
+            {
+                title: '原価内訳',
+                icon: 'fa-calculator',
+                color: '#3b82f6',
+                fields: [
+                    { name: 'MaterialCost', label: '材料費', type: 'number', width: 'full' },
+                    { name: 'LaborCost', label: '労務費', type: 'number', width: 'full' },
+                    { name: 'OutsourceCost', label: '外注費', type: 'number', width: 'full' }
+                ]
+            },
+            {
+                title: '合計・利益',
+                icon: 'fa-chart-line',
+                color: '#f59e0b',
+                fields: [
+                    { name: 'TotalCost', label: '総原価', type: 'number', width: 'full' },
+                    { name: 'SalesAmount', label: '売上金額', type: 'number', width: 'full' },
+                    { name: 'Profit', label: '利益', type: 'number', width: 'full' }
+                ]
+            }
+        ],
+        svg: `<svg width="80" height="80" viewBox="0 0 100 100" fill="none"><path d="M20 80 V40 H40 V80 M40 80 V30 H60 V80 M60 80 V50 H80 V80" stroke="#10b981" stroke-width="6" stroke-linecap="round"/></svg>`
+    },
+
+    // 購入部品
+    't_purchaseparts': {
+        displayName: '購入部品',
+        icon: 'shopping-cart',
+        color: { primary: '#3b82f6', secondary: '#1d4ed8', light: '#dbeafe' },
+        layout: 'double',
+        sections: [
+            {
+                title: '基本情報',
+                icon: 'fa-info-circle',
+                color: '#3b82f6',
+                fields: [
+                    { name: 'PartsCode', label: '部品コード', type: 'text', required: true, width: 'full' },
+                    { name: 'PartsName', label: '部品名', type: 'text', required: true, width: 'full' },
+                    { name: 'Specification', label: '規格', type: 'text', width: 'full' }
+                ]
+            },
+            {
+                title: '価格・在庫・発注',
+                icon: 'fa-tags',
+                color: '#10b981',
+                fields: [
+                    { name: 'UnitPrice', label: '単価', type: 'number', width: 'full' },
+                    { name: 'StockQty', label: '在庫数', type: 'number', width: 'full' },
+                    { name: 'Unit', label: '単位', type: 'text', width: 'full' },
+                    { name: 'MakerCode', label: 'メーカーコード', type: 'text', width: 'full' },
+                    { name: 'SupplierCode', label: '仕入先コード', type: 'text', width: 'full' },
+                    { name: 'LeadTime', label: 'リードタイム', type: 'number', width: 'full' }
+                ]
+            }
+        ],
+        svg: `<svg width="80" height="80" viewBox="0 0 100 100"><rect x="20" y="30" width="60" height="50" rx="5" fill="#3b82f6" opacity="0.2"/><path d="M30 30 L30 20 L70 20 L70 30" stroke="#3b82f6" stroke-width="5" fill="none"/></svg>`
+    },
+
+    // 図面番号採番
+    't_saiban': {
+        displayName: '図面番号採番',
+        icon: 'blueprint',
+        color: { primary: '#6366f1', secondary: '#4338ca', light: '#e0e7ff' },
+        layout: 'double',
+        sections: [
+            {
+                title: '図面情報',
+                icon: 'fa-pencil-ruler',
+                color: '#6366f1',
+                fields: [
+                    { name: 'DrawingNo', label: '図面番号', type: 'text', required: true, width: 'full' },
+                    { name: 'Description', label: '品名', type: 'text', width: 'full' },
+                    { name: 'Designer', label: '設計者', type: 'text', width: 'full' },
+                    { name: 'OrderNo', label: '工事番号', type: 'text', width: 'full' }
+                ]
+            },
+            {
+                title: '詳細情報',
+                icon: 'fa-info-circle',
+                color: '#10b981',
+                fields: [
+                    { name: 'Material', label: '材質', type: 'text', width: 'full' },
+                    { name: 'SaibanDate', label: '採番日', type: 'date', width: 'full' },
+                    { name: 'MaterialWeight', label: '素材重量', type: 'number', width: 'full' },
+                    { name: 'FinishedWeight', label: '仕上重量', type: 'number', width: 'full' },
+                    { name: 'History1', label: '履歴', type: 'textarea', width: 'full' }
+                ]
+            }
+        ],
+        svg: `<svg width="80" height="80" viewBox="0 0 100 100"><rect x="20" y="20" width="60" height="60" fill="#6366f1" opacity="0.2"/><line x1="30" y1="30" x2="70" y2="70" stroke="#6366f1" stroke-width="2"/><line x1="70" y1="30" x2="30" y2="70" stroke="#6366f1" stroke-width="2"/></svg>`
+    },
+
+    // 工程コード
+    't_processcode': {
+        displayName: '工程コード',
+        icon: 'tasks',
+        color: { primary: '#8b5cf6', secondary: '#6d28d9', light: '#f5f3ff' },
+        layout: 'single',
+        sections: [
+            {
+                title: '工程情報',
+                icon: 'fa-stream',
+                color: '#8b5cf6',
+                fields: [
+                    { name: 'ProcessCode', label: '工程コード', type: 'text', required: true, width: 'full' },
+                    { name: 'ProcessName', label: '工程名', type: 'text', required: true, width: 'full' },
+                    { name: 'StandardTime', label: '標準時間', type: 'number', width: 'full' }
+                ]
+            }
+        ],
+        svg: `<svg width="80" height="80" viewBox="0 0 100 100"><circle cx="50" cy="50" r="35" fill="#8b5cf6" opacity="0.2"/><path d="M35 50 L45 60 L65 40" stroke="#8b5cf6" stroke-width="6" fill="none"/></svg>`
+    },
+
+    // 仕入情報
+    't_purchase': {
+        displayName: '仕入情報',
+        icon: 'file-invoice-dollar',
+        color: { primary: '#f59e0b', secondary: '#d97706', light: '#fffbeb' },
+        layout: 'double',
+        sections: [
+            {
+                title: '伝票・仕入先',
+                icon: 'fa-file-alt',
+                color: '#f59e0b',
+                fields: [
+                    { name: 'PurchaseNo', label: '仕入番号', type: 'text', required: true, width: 'full' },
+                    { name: 'PurchaseDate', label: '仕入日', type: 'date', width: 'full' },
+                    { name: 'SupplierCode', label: '仕入先コード', type: 'text', width: 'full' },
+                    { name: 'ConstructNo', label: '工事番号', type: 'text', width: 'full' }
+                ]
+            },
+            {
+                title: '金額・備考',
+                icon: 'fa-coins',
+                color: '#10b981',
+                fields: [
+                    { name: 'Amount', label: '金額', type: 'number', width: 'full' },
+                    { name: 'Tax', label: '消費税', type: 'number', width: 'full' },
+                    { name: 'TotalAmount', label: '合計金額', type: 'number', width: 'full' },
+                    { name: 'Remarks', label: '備考', type: 'textarea', width: 'full' }
+                ]
+            }
+        ],
+        svg: `<svg width="80" height="80" viewBox="0 0 100 100"><rect x="25" y="20" width="50" height="60" rx="4" fill="#f59e0b" opacity="0.2"/><line x1="35" y1="40" x2="65" y2="40" stroke="#f59e0b" stroke-width="3"/></svg>`
+    },
+
+    // ユニットコード
+    't_unitcode': {
+        displayName: 'ユニットコード',
+        icon: 'cubes',
+        color: { primary: '#06b6d4', secondary: '#0891b2', light: '#ecfeff' },
+        layout: 'single',
+        sections: [
+            {
+                title: 'ユニット情報',
+                icon: 'fa-cube',
+                color: '#06b6d4',
+                fields: [
+                    { name: 'UnitCode', label: 'ユニットコード', type: 'text', required: true, width: 'full' },
+                    { name: 'UnitName', label: 'ユニット名', type: 'text', required: true, width: 'full' },
+                    { name: 'UnitNameEn', label: 'ユニット名(英語)', type: 'text', width: 'full' }
+                ]
+            }
+        ],
+        svg: `<svg width="80" height="80" viewBox="0 0 100 100"><path d="M50 20 L80 35 L80 65 L50 80 L20 65 L20 35 Z" fill="#06b6d4" opacity="0.2"/></svg>`
+    },
+
+    // 作業コード
+    't_workcode': {
+        displayName: '作業コード',
+        icon: 'hammer',
+        color: { primary: '#ec4899', secondary: '#be185d', light: '#fdf2f8' },
+        layout: 'single',
+        sections: [
+            {
+                title: '作業情報',
+                icon: 'fa-tools',
+                color: '#ec4899',
+                fields: [
+                    { name: 'WorkCode', label: '作業コード', type: 'text', required: true, width: 'full' },
+                    { name: 'WorkName', label: '作業名', type: 'text', required: true, width: 'full' },
+                    { name: 'WorkType', label: '作業区分', type: 'text', width: 'full' }
+                ]
+            }
+        ],
+        svg: `<svg width="80" height="80" viewBox="0 0 100 100"><circle cx="50" cy="50" r="35" fill="#ec4899" opacity="0.2"/><path d="M40 60 L60 40 M35 55 L45 65 M55 35 L65 45" stroke="#ec4899" stroke-width="5"/></svg>`
+    },
+
+    // 作業部署
+    't_workdepartment': {
+        displayName: '作業部署',
+        icon: 'users-cog',
+        color: { primary: '#10b981', secondary: '#047857', light: '#f0fdf4' },
+        layout: 'single',
+        sections: [
+            {
+                title: '部署情報',
+                icon: 'fa-users',
+                color: '#10b981',
+                fields: [
+                    { name: 'WorkDepaCode', label: '作業部署コード', type: 'text', required: true, width: 'full' },
+                    { name: 'WorkDepaName', label: '作業部署名', type: 'text', required: true, width: 'full' },
+                    { name: 'Manager', label: '管理者', type: 'text', width: 'full' }
+                ]
+            }
+        ],
+        svg: `<svg width="80" height="80" viewBox="0 0 100 100"><circle cx="35" cy="40" r="10" fill="#10b981" opacity="0.4"/><circle cx="65" cy="40" r="10" fill="#10b981" opacity="0.4"/><path d="M20 70 Q50 50 80 70" stroke="#10b981" stroke-width="5" fill="none"/></svg>`
+    },
+
+    // 原価集計ビュー
+    'v_cost_summary': {
+        displayName: '原価集計',
+        icon: 'chart-pie',
+        color: { primary: '#f43f5e', secondary: '#be123c', light: '#fff1f2' },
+        layout: 'double',
+        sections: [
+            {
+                title: '工事概要・集計',
+                icon: 'fa-file-invoice-dollar',
+                color: '#f43f5e',
+                fields: [
+                    { name: 'ConstructNo', label: '工事番号', type: 'text', width: 'full' },
+                    { name: 'ConstructName', label: '工事名称', type: 'text', width: 'full' },
+                    { name: 'TotalCost', label: '総原価', type: 'number', width: 'full' },
+                    { name: 'Profit', label: '利益', type: 'number', width: 'full' },
+                    { name: 'ProfitRate', label: '利益率(%)', type: 'number', width: 'full' }
+                ]
+            },
+            {
+                title: '原価詳細',
+                icon: 'fa-calculator',
+                color: '#10b981',
+                fields: [
+                    { name: 'MaterialCost', label: '材料原価', type: 'number', width: 'full' },
+                    { name: 'LaborCost', label: '労務原価', type: 'number', width: 'full' },
+                    { name: 'OutsourcingCost', label: '外注原価', type: 'number', width: 'full' }
+                ]
+            }
+        ],
+        svg: `<svg width="80" height="80" viewBox="0 0 100 100"><path d="M50 50 L50 15 A35 35 0 0 1 85 50 Z" fill="#f43f5e" opacity="0.6"/><circle cx="50" cy="50" r="35" stroke="#f43f5e" stroke-width="2" fill="none"/></svg>`
+    }
+};
+
+// グローバルに公開
+window.TABLE_MODAL_CONFIGS = TABLE_MODAL_CONFIGS;
+
+// スペース入りテーブル名のエイリアスを追加
+// データベースから "t Accept Order" のように取得される可能性があるため
+TABLE_MODAL_CONFIGS['t Accept Order'] = TABLE_MODAL_CONFIGS['t_acceptorder'];
+TABLE_MODAL_CONFIGS['t Account Code'] = TABLE_MODAL_CONFIGS['t_accountcode'];
+TABLE_MODAL_CONFIGS['t Construction Number'] = TABLE_MODAL_CONFIGS['t_constructionnumber'];
+TABLE_MODAL_CONFIGS['t Department Code'] = TABLE_MODAL_CONFIGS['t_departmentcode'];
+TABLE_MODAL_CONFIGS['t Machine Code'] = TABLE_MODAL_CONFIGS['t_machinecode'];
+TABLE_MODAL_CONFIGS['t Material Code'] = TABLE_MODAL_CONFIGS['t_materialcode'];
+TABLE_MODAL_CONFIGS['t Staff Code'] = TABLE_MODAL_CONFIGS['t_staffcode'];
+TABLE_MODAL_CONFIGS['t Computer Device'] = TABLE_MODAL_CONFIGS['t_computerdevice'];
+TABLE_MODAL_CONFIGS['t Currency Code'] = TABLE_MODAL_CONFIGS['t_currencycode'];
+TABLE_MODAL_CONFIGS['t Machine Mark For Saiban'] = TABLE_MODAL_CONFIGS['t_machinemarkforsaiban'];
+TABLE_MODAL_CONFIGS['t Machine Unit Code'] = TABLE_MODAL_CONFIGS['t_machineunitcode'];
+TABLE_MODAL_CONFIGS['t Money Receipt'] = TABLE_MODAL_CONFIGS['t_moneyreceipt'];
+TABLE_MODAL_CONFIGS['t Purchase Parts'] = TABLE_MODAL_CONFIGS['t_purchaseparts'];
+TABLE_MODAL_CONFIGS['t Saiban'] = TABLE_MODAL_CONFIGS['t_saiban'];
+TABLE_MODAL_CONFIGS['t Process Code'] = TABLE_MODAL_CONFIGS['t_processcode'];
+TABLE_MODAL_CONFIGS['t Purchase'] = TABLE_MODAL_CONFIGS['t_purchase'];
+TABLE_MODAL_CONFIGS['t Unit Code'] = TABLE_MODAL_CONFIGS['t_unitcode'];
+TABLE_MODAL_CONFIGS['t Work Code'] = TABLE_MODAL_CONFIGS['t_workcode'];
+TABLE_MODAL_CONFIGS['t Work Department'] = TABLE_MODAL_CONFIGS['t_workdepartment'];
+TABLE_MODAL_CONFIGS['v Cost Summary'] = TABLE_MODAL_CONFIGS['v_cost_summary'];
+
+// 大文字バージョンも追加
+TABLE_MODAL_CONFIGS['T_ACCEPTORDER'] = TABLE_MODAL_CONFIGS['t_acceptorder'];
+TABLE_MODAL_CONFIGS['T_ACCOUNTCODE'] = TABLE_MODAL_CONFIGS['t_accountcode'];
+TABLE_MODAL_CONFIGS['T_CONSTRUCTIONNUMBER'] = TABLE_MODAL_CONFIGS['t_constructionnumber'];
+TABLE_MODAL_CONFIGS['T_DEPARTMENTCODE'] = TABLE_MODAL_CONFIGS['t_departmentcode'];
+TABLE_MODAL_CONFIGS['T_MACHINECODE'] = TABLE_MODAL_CONFIGS['t_machinecode'];
+TABLE_MODAL_CONFIGS['T_MATERIALCODE'] = TABLE_MODAL_CONFIGS['t_materialcode'];
+TABLE_MODAL_CONFIGS['T_STAFFCODE'] = TABLE_MODAL_CONFIGS['t_staffcode'];
+TABLE_MODAL_CONFIGS['T_COMPUTERDEVICE'] = TABLE_MODAL_CONFIGS['t_computerdevice'];
+TABLE_MODAL_CONFIGS['T_CURRENCYCODE'] = TABLE_MODAL_CONFIGS['t_currencycode'];
+TABLE_MODAL_CONFIGS['T_MACHINEMARKFORSAIBAN'] = TABLE_MODAL_CONFIGS['t_machinemarkforsaiban'];
+TABLE_MODAL_CONFIGS['T_MACHINEUNITCODE'] = TABLE_MODAL_CONFIGS['t_machineunitcode'];
+TABLE_MODAL_CONFIGS['T_MONEYRECEIPT'] = TABLE_MODAL_CONFIGS['t_moneyreceipt'];
+TABLE_MODAL_CONFIGS['T_PURCHASEPARTS'] = TABLE_MODAL_CONFIGS['t_purchaseparts'];
+TABLE_MODAL_CONFIGS['T_SAIBAN'] = TABLE_MODAL_CONFIGS['t_saiban'];
+TABLE_MODAL_CONFIGS['T_PROCESSCODE'] = TABLE_MODAL_CONFIGS['t_processcode'];
+TABLE_MODAL_CONFIGS['T_PURCHASE'] = TABLE_MODAL_CONFIGS['t_purchase'];
+TABLE_MODAL_CONFIGS['T_UNITCODE'] = TABLE_MODAL_CONFIGS['t_unitcode'];
+TABLE_MODAL_CONFIGS['T_WORKCODE'] = TABLE_MODAL_CONFIGS['t_workcode'];
+TABLE_MODAL_CONFIGS['T_WORKDEPARTMENT'] = TABLE_MODAL_CONFIGS['t_workdepartment'];
+TABLE_MODAL_CONFIGS['V_COST_SUMMARY'] = TABLE_MODAL_CONFIGS['v_cost_summary'];
+
+// デバッグ: 設定されているテーブル一覧を表示
+console.log('=== TABLE_MODAL_CONFIGS Loaded ===');
+console.log('Available table configs:', Object.keys(TABLE_MODAL_CONFIGS));
+console.log('Total configs:', Object.keys(TABLE_MODAL_CONFIGS).length);
+
+// 既存のgetFormConfig関数との互換性を保つ
+function getFormConfig(tableName) {
+    if (!tableName) return null;
+    
+    // TABLE_MODAL_CONFIGSから探す
+    const config = TABLE_MODAL_CONFIGS[tableName] || TABLE_MODAL_CONFIGS[tableName.toLowerCase()];
+    if (config) {
+        return config;
+    }
+    
+    return null;
+}

@@ -13,7 +13,7 @@ let tableData = [];
 let filteredData = [];
 let selectedRows = new Set();
 let currentPage = 1;
-let itemsPerPage = 20;
+let itemsPerPage = 10000;
 let todos = [];
 let todoNotificationCheckInterval = null;
 let currentTodoFilter = 'all';
@@ -33,6 +33,13 @@ const TABLE_NAME_MAP = {
     'projects': 'プロジェクト管理',
     'employees': '社員管理',
     'users': 'ユーザー管理',
+    't_acceptorder': '受注管理',
+    't_construction': '工事管理',
+    't_staffcode': '社員管理',
+    't_workcode': '作業コード管理',
+    't_worktime': '作業実績管理',
+    't_companycode': '会社コード管理',
+    't_workdepartment': '部署・職種管理',
     // テーブル名は英語のまま表示するため、マッピングを削除
 };
 
@@ -160,37 +167,47 @@ const COLUMN_NAME_MAP = {
     'Machine Name Eng': '機械名称(英語)',
     // t Accept Orderテーブルのカラム名
     'construct_no': '工事番号',
+    'constructno': '工事番号',
     'constructNo': '工事番号',
     'Construct No': '工事番号',
-    'register_date': '受注登録日',
-    'registerDate': '受注登録日',
-    'Register Date': '受注登録日',
+    'register_date': '登録日',
+    'registerdate': '登録日',
+    'registerDate': '登録日',
+    'Register Date': '登録日',
     'construct_name': '工事名称',
+    'constructname': '工事名称',
     'constructName': '工事名称',
     'Construct Name': '工事名称',
-    'eigyo_manno': '営業担当<br>ｺｰﾄﾞ',
-    'eigyoManno': '営業担当<br>ｺｰﾄﾞ',
-    'Eigyo Manno': '営業担当<br>ｺｰﾄﾞ',
-    'owner_code': '受注元ｺｰﾄﾞ',
-    'ownerCode': '受注元ｺｰﾄﾞ',
-    'Owner Code': '受注元ｺｰﾄﾞ',
-    'user_code': '納品先ｺｰﾄﾞ',
-    'userCode': '納品先ｺｰﾄﾞ',
-    'User Code': '納品先ｺｰﾄﾞ',
+    'eigyo_manno': '営業担当者',
+    'eigyomanno': '営業担当者',
+    'eigyoManno': '営業担当者',
+    'Eigyo Manno': '営業担当者',
+    'owner_code': '受注元',
+    'ownercode': '受注元',
+    'ownerCode': '受注元',
+    'Owner Code': '受注元',
+    'user_code': '納品先',
+    'usercode': '納品先',
+    'userCode': '納品先',
+    'User Code': '納品先',
     'order_price': '受注金額',
+    'orderprice': '受注金額',
     'orderPrice': '受注金額',
     'Order Price': '受注金額',
     'order_date': '受注日',
+    'orderdate': '受注日',
     'orderDate': '受注日',
     'Order Date': '受注日',
     'delivery_date': '納期',
+    'deliverydate': '納期',
     'deliveryDate': '納期',
     'Delivery Date': '納期',
-    'dealing_doc_mitsumori': '電子見積書',
-    'dealingDocMitsumori': '電子見積書',
-    'Dealing Doc Mitsumori': '電子見積書',
-    'dealing_doc_chuumon': '電子注文書',
-    'dealingDocChuumon': '電子注文書',
+    'dealing_doc_mitsumori': '見積書',
+    'dealingdocmitsumori': '見積書',
+    'dealingDocMitsumori': '見積書',
+    'dealing_doc_chuumon': '注文書',
+    'dealingdocchuumon': '注文書',
+    'dealingDocChuumon': '注文書',
     'Dealing Doc Chuumon': '電子注文書',
     'dealing_doc_seikyu': '電子請求書',
     'dealingDocSeikyu': '電子請求書',
@@ -997,7 +1014,7 @@ async function initializeApp() {
                         console.log('Supabaseクライアントを初期化します...');
                         if (!window.supabaseClient) {
                             try {
-                                const client = window.supabase.createClient(SUPABASE_CONFIG.url, SUPABASE_CONFIG.key);
+                                const client = window.supabase.createClient(window.SUPABASE_CONFIG.url, window.SUPABASE_CONFIG.key);
                                 window.supabaseClient = client;
                                 console.log('Supabaseクライアントの初期化が完了しました');
                                 resolve();
@@ -1172,19 +1189,55 @@ function setupEventListeners() {
     const globalSearchInput = document.getElementById('filter-global-search');
     if (globalSearchInput) {
         globalSearchInput.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') {
-            applyFilters();
+            if (e.key === 'Enter') {
+                applyFilters();
+            }
+        });
+    }
+
+    // 日付検索のEnterキー対応
+    const dateStartInput = document.getElementById('filter-date-start');
+    const dateEndInput = document.getElementById('filter-date-end');
+    [dateStartInput, dateEndInput].forEach(input => {
+        if (input) {
+            input.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    applyFilters();
+                }
+            });
         }
     });
-    }
 
     // カラム選択プルダウンの変更イベント対応
     const columnSelect = document.getElementById('filter-column-select');
     if (columnSelect) {
         columnSelect.addEventListener('change', () => {
-            // プルダウン変更時は自動検索しない（検索実行ボタンで実行）
+            const selectedColumn = columnSelect.value;
+            const globalSearchInput = document.getElementById('filter-global-search');
+            const dateRangeContainer = document.getElementById('filter-date-range');
+            
+            if (!selectedColumn) {
+                // 全体検索の場合
+                globalSearchInput.style.display = 'block';
+                dateRangeContainer.style.display = 'none';
+                return;
+            }
+            
+            // 選択されたカラムが日付系かどうか判定
+            const colLower = selectedColumn.toLowerCase();
+            const displayName = getColumnDisplayName(selectedColumn);
+            const isDateColumn = colLower.includes('date') || colLower.includes('time') || 
+                               displayName.includes('日') || displayName.includes('時');
+            
+            if (isDateColumn) {
+                globalSearchInput.style.display = 'none';
+                dateRangeContainer.style.display = 'flex';
+            } else {
+                globalSearchInput.style.display = 'block';
+                dateRangeContainer.style.display = 'none';
+            }
         });
-        }
+    }
 
     // 新規登録
     const newRegisterBtn = document.getElementById('new-register');
@@ -1529,6 +1582,12 @@ function showPage(pageName) {
         console.log('図面番号採番ページを表示します');
         setTimeout(() => {
             initializeDrawingNumberPage();
+        }, 100);
+    } else if (pageName === 'processing-progress') {
+        // 加工進捗ページを開いた時の初期化
+        console.log('加工進捗ページを表示します');
+        setTimeout(() => {
+            initializeProcessingProgressPage();
         }, 100);
     } else if (pageName === 'dashboard') {
         // 少し遅延してからupdateDashboardを呼ぶ（DOMが確実に更新されるまで待つ）
@@ -2872,9 +2931,9 @@ function updateDueTasks() {
         }
         
         const priorityIcons = {
-            low: '🟢',
-            medium: '🟡',
-            high: '🔴'
+            low: '<i class="fas fa-circle" style="color: #2ecc71; font-size: 10px;"></i>',
+            medium: '<i class="fas fa-circle" style="color: #f1c40f; font-size: 10px;"></i>',
+            high: '<i class="fas fa-circle" style="color: #e74c3c; font-size: 10px;"></i>'
         };
         const priorityLabels = {
             low: '低',
@@ -2883,7 +2942,7 @@ function updateDueTasks() {
         };
         
         const dueDateStr = `${dueDate.getFullYear()}/${String(dueDate.getMonth() + 1).padStart(2, '0')}/${String(dueDate.getDate()).padStart(2, '0')}`;
-        const dueDateLabel = isOverdue ? `⚠️ 期限切れ: ${dueDateStr}` : (isDueToday ? `⏰ 今日が期限: ${dueDateStr}` : `📅 期限: ${dueDateStr}`);
+        const dueDateLabel = isOverdue ? `<i class="fas fa-exclamation-triangle"></i> 期限切れ: ${dueDateStr}` : (isDueToday ? `<i class="fas fa-clock"></i> 今日が期限: ${dueDateStr}` : `<i class="fas fa-calendar-alt"></i> 期限: ${dueDateStr}`);
         
         taskItem.innerHTML = `
             <div class="sidebar-task-priority priority-${task.priority || 'medium'}">
@@ -3440,7 +3499,7 @@ function openCalendarEventFormModal(year, month, date, eventIndex = null) {
         return;
     }
     
-    formTitle.textContent = eventIndex === null ? `✨ 予定を追加 - ${dateStr}` : `✏️ 予定を編集 - ${dateStr}`;
+    formTitle.innerHTML = eventIndex === null ? `予定を追加 - ${dateStr}` : `予定を編集 - ${dateStr}`;
     eventDateInput.value = dateStr;
     
     // その日の予定を取得して表示
@@ -3450,6 +3509,12 @@ function openCalendarEventFormModal(year, month, date, eventIndex = null) {
                eventDate.getMonth() === month && 
                eventDate.getDate() === date;
     });
+    
+    // バッジ件数を更新
+    const countBadge = document.getElementById('calendar-event-count-badge');
+    if (countBadge) {
+        countBadge.textContent = `${dayEvents.length}件`;
+    }
     
     // 時間順にソート（時間がない予定は最後に）
     dayEvents.sort((a, b) => {
@@ -3475,26 +3540,46 @@ function openCalendarEventFormModal(year, month, date, eventIndex = null) {
         return parseTime(timeA) - parseTime(timeB);
     });
     
-        if (eventsContent) {
+    if (eventsContent) {
         eventsContent.innerHTML = '';
         if (dayEvents.length === 0) {
-            eventsContent.innerHTML = '<div class="sidebar-empty" style="font-size: 14px;">予定はありません</div>';
+            eventsContent.innerHTML = `
+                <div class="sidebar-empty" style="padding: 60px 20px; text-align: center;">
+                    <i class="fas fa-calendar-day" style="font-size: 48px; opacity: 0.1; margin-bottom: 16px; display: block; color: #6366f1;"></i>
+                    <div style="font-size: 15px; font-weight: 600; color: #94a3b8;">この日の予定はまだありません</div>
+                    <div style="font-size: 12px; color: #cbd5e1; margin-top: 4px;">右側のフォームから新しい予定を登録できます</div>
+                </div>
+            `;
         } else {
             dayEvents.forEach((event, index) => {
                 const eventItem = document.createElement('div');
                 eventItem.className = 'calendar-event-form-event-item';
-                eventItem.style.cssText = 'padding: 16px; margin-bottom: 12px; background: var(--bg-primary); border: 1px solid var(--border-light); border-radius: 8px; display: flex; justify-content: space-between; align-items: flex-start; transition: background 0.2s;';
-                eventItem.onmouseover = function() { this.style.background = 'var(--bg-secondary)'; };
-                eventItem.onmouseout = function() { this.style.background = 'var(--bg-primary)'; };
+                eventItem.style.cssText = 'padding: 16px; margin-bottom: 12px; background: white; border: 1px solid #e2e8f0; border-radius: 12px; display: flex; justify-content: space-between; align-items: flex-start; transition: all 0.2s; box-shadow: 0 2px 4px rgba(0,0,0,0.02);';
+                eventItem.onmouseover = function() { 
+                    this.style.borderColor = '#6366f1'; 
+                    this.style.boxShadow = '0 4px 12px rgba(99, 102, 241, 0.1)';
+                    this.style.transform = 'translateY(-2px)';
+                };
+                eventItem.onmouseout = function() { 
+                    this.style.borderColor = '#e2e8f0'; 
+                    this.style.boxShadow = '0 2px 4px rgba(0,0,0,0.02)';
+                    this.style.transform = 'translateY(0)';
+                };
                 eventItem.innerHTML = `
                     <div style="flex: 1; min-width: 0;">
-                        <div style="font-size: 16px; font-weight: 600; color: var(--text-primary); margin-bottom: 8px;">${escapeHtml(event.title || '')}</div>
-                        ${event.time ? `<div style="font-size: 14px; color: var(--text-secondary); margin-bottom: 6px;">⏰ ${escapeHtml(event.time)}</div>` : ''}
-                        ${event.description ? `<div style="font-size: 14px; color: var(--text-secondary); margin-top: 6px; line-height: 1.5; word-wrap: break-word;">${escapeHtml(event.description)}</div>` : ''}
+                        <div style="font-size: 15px; font-weight: 700; color: #1e293b; margin-bottom: 6px; display: flex; align-items: center; gap: 6px;">
+                            <span style="width: 8px; height: 8px; background: #6366f1; border-radius: 50%;"></span>
+                            ${escapeHtml(event.title || '')}
+                        </div>
+                        <div style="display: flex; flex-wrap: wrap; gap: 12px;">
+                            ${event.time ? `<div style="font-size: 12px; color: #64748b; font-weight: 600; display: flex; align-items: center; gap: 4px;"><i class="far fa-clock"></i> ${escapeHtml(event.time)}</div>` : ''}
+                            ${event.notification !== false ? `<div style="font-size: 11px; color: #10b981; font-weight: 600; display: flex; align-items: center; gap: 4px;"><i class="fas fa-bell"></i> 通知ON</div>` : ''}
+                        </div>
+                        ${event.description ? `<div style="font-size: 13px; color: #475569; margin-top: 8px; line-height: 1.5; background: #f8fafc; padding: 8px 10px; border-radius: 6px; border-left: 3px solid #e2e8f0;">${escapeHtml(event.description)}</div>` : ''}
                     </div>
-                    <div style="display: flex; gap: 6px; flex-shrink: 0; margin-left: 12px;">
-                        <button onclick="event.stopPropagation(); editCalendarEventFromForm('${year}-${month}-${date}', ${index})" style="padding: 6px 12px; background: var(--primary); color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 13px; transition: background 0.2s;" onmouseover="this.style.background='var(--primary-dark)'" onmouseout="this.style.background='var(--primary)'" title="編集">✏️</button>
-                        <button onclick="event.stopPropagation(); deleteCalendarEventFromForm('${year}-${month}-${date}', ${index})" style="padding: 6px 12px; background: var(--error); color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 13px; transition: background 0.2s;" onmouseover="this.style.background='var(--error-dark)'" onmouseout="this.style.background='var(--error)'" title="削除">🗑️</button>
+                    <div style="display: flex; gap: 8px; flex-shrink: 0; margin-left: 12px;">
+                        <button onclick="event.stopPropagation(); editCalendarEventFromForm('${year}-${month}-${date}', ${index})" style="width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; background: #f1f5f9; color: #64748b; border: none; border-radius: 8px; cursor: pointer; transition: all 0.2s;" onmouseover="this.style.background='#e0e7ff'; this.style.color='#6366f1'" onmouseout="this.style.background='#f1f5f9'; this.style.color='#64748b'" title="編集"><i class="fas fa-edit"></i></button>
+                        <button onclick="event.stopPropagation(); deleteCalendarEventFromForm('${year}-${month}-${date}', ${index})" style="width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; background: #f1f5f9; color: #64748b; border: none; border-radius: 8px; cursor: pointer; transition: all 0.2s;" onmouseover="this.style.background='#fee2e2'; this.style.color='#ef4444'" onmouseout="this.style.background='#f1f5f9'; this.style.color='#64748b'" title="削除"><i class="fas fa-trash-alt"></i></button>
                     </div>
                 `;
                 eventsContent.appendChild(eventItem);
@@ -4390,10 +4475,10 @@ async function loadTables() {
         
         // REST APIからOpenAPI仕様を取得してテーブル一覧を取得
         try {
-            const response = await fetch(`${SUPABASE_CONFIG.url}/rest/v1/`, {
+            const response = await fetch(`${window.SUPABASE_CONFIG.url}/rest/v1/`, {
                 headers: {
-                    'apikey': SUPABASE_CONFIG.key,
-                    'Authorization': `Bearer ${SUPABASE_CONFIG.key}`
+                    'apikey': window.SUPABASE_CONFIG.key,
+                    'Authorization': `Bearer ${window.SUPABASE_CONFIG.key}`
                 }
             });
 
@@ -4422,7 +4507,10 @@ async function loadTables() {
         // テーブルが見つからない場合は、よく使われるテーブル名を試す
         if (availableTables.length === 0) {
             console.log('テーブルが見つからないため、よく使われるテーブル名を確認します...');
-            const commonTables = ['machines', 'machine_codes', 'items', 'products', 'orders', 't Accept Order', '取引先'];
+            const commonTables = [
+                'machines', 'machine_codes', 'items', 'products', 'orders', 't_acceptorder', '取引先',
+                't_staffcode', 't_workcode', 't_workdepartment', 't_construction', 't_companycode'
+            ];
             for (const tableName of commonTables) {
                 try {
                     const { error } = await getSupabaseClient().from(tableName).select('id').limit(1);
@@ -4654,15 +4742,14 @@ function updateSearchFields(data) {
     const excludedCols = ['id', 'created_at', 'updated_at', 'deleted_at'];
     const searchColumns = columns.filter(col => !excludedCols.includes(col.toLowerCase()));
 
-    // カラムをソートして追加
-    const sortedColumns = [...searchColumns].sort((a, b) => {
-        return a.localeCompare(b, 'ja');
-    });
-
-    sortedColumns.forEach(col => {
+    // カラムをそのままの順番で追加（ソートしない）
+    searchColumns.forEach(col => {
         const option = document.createElement('option');
         option.value = col;
-        option.textContent = getColumnDisplayName(col);
+        // 改行タグなどを削除してテキストのみを表示
+        let displayName = getColumnDisplayName(col);
+        displayName = displayName.replace(/<br\s*\/?>/gi, ' ');
+        option.textContent = displayName;
         select.appendChild(option);
     });
 }
@@ -4686,35 +4773,63 @@ function displayTable() {
     }
 
     const columns = Object.keys(filteredData[0]);
-    const start = (currentPage - 1) * itemsPerPage;
-    const end = start + itemsPerPage;
-    const pageData = filteredData.slice(start, end);
+    const start = 0;
+    const end = filteredData.length;
+    const pageData = filteredData;
 
     // ヘッダー
     thead.innerHTML = '';
     const headerRow = document.createElement('tr');
+    
+    // 選択列
     const selectTh = document.createElement('th');
-    selectTh.style.cssText = 'width: 80px; min-width: 80px; max-width: 80px; box-sizing: border-box; font-size: 13px; font-weight: 600; padding: 14px 12px;';
+    selectTh.className = 'select-column';
+    selectTh.style.cssText = 'width: 60px !important; min-width: 60px !important; max-width: 60px !important; box-sizing: border-box; font-size: 13px; font-weight: 700; padding: 12px 2px;';
     selectTh.textContent = '選択';
     headerRow.appendChild(selectTh);
     
+    // 詳細列
     const detailTh = document.createElement('th');
-    detailTh.style.cssText = 'width: 70px; min-width: 70px; max-width: 70px; box-sizing: border-box; font-size: 13px; font-weight: 600; padding: 14px 12px;';
+    detailTh.style.cssText = 'width: 100px !important; min-width: 100px !important; max-width: 100px !important; box-sizing: border-box; font-size: 13px; font-weight: 700; padding: 12px 2px;';
     detailTh.textContent = '詳細';
     headerRow.appendChild(detailTh);
     
-    // データ列を先に追加
+    // データ列
     columns.forEach(col => {
         const th = document.createElement('th');
         const displayName = getColumnDisplayName(col);
-        th.innerHTML = displayName; // innerHTMLを使用して改行を反映
-        th.style.cssText = 'box-sizing: border-box; font-size: 13px; font-weight: 600; padding: 10px 8px; white-space: normal; word-wrap: break-word; overflow-wrap: break-word; min-width: 80px; max-width: 150px;';
+        th.textContent = displayName;
+        
+        let extraStyle = '';
+        const colLower = col.toLowerCase();
+        const dispLower = displayName.toLowerCase();
+
+        // 幅を狭くする項目の判定
+        const isNarrow = 
+            colLower.includes('constructno') || colLower.includes('工事番号') ||
+            colLower.includes('eigyo') || colLower.includes('営業') ||
+            colLower.includes('owner') || colLower.includes('受注元') ||
+            colLower.includes('user') || colLower.includes('納品先') ||
+            colLower.includes('mitsumori') || colLower.includes('見積書') ||
+            colLower.includes('chuumon') || colLower.includes('注文書') ||
+            colLower.includes('seikyu') || colLower.includes('請求書') ||
+            colLower.includes('doc');
+
+        if (isNarrow) {
+            extraStyle = 'max-width: 100px; min-width: 80px; overflow: hidden; text-overflow: ellipsis;';
+        } else if (colLower.includes('constructname') || colLower.includes('工事名称')) {
+            extraStyle = 'max-width: 200px; min-width: 150px; overflow: hidden; text-overflow: ellipsis;';
+        } else {
+            extraStyle = 'min-width: 100px;';
+        }
+        
+        th.style.cssText = `box-sizing: border-box; font-size: 13px; font-weight: 700; padding: 12px 8px; white-space: nowrap; ${extraStyle}`;
         headerRow.appendChild(th);
     });
     
-    // 操作列を最後（右端）に追加
+    // 操作列（右端）
     const actionTh = document.createElement('th');
-    actionTh.style.cssText = 'width: 120px; min-width: 120px; max-width: 120px; box-sizing: border-box;';
+    actionTh.style.cssText = 'width: 220px !important; min-width: 220px !important; max-width: 220px !important; box-sizing: border-box; font-size: 13px; font-weight: 700; padding: 12px 4px;';
     actionTh.textContent = '操作';
     headerRow.appendChild(actionTh);
     
@@ -4728,9 +4843,13 @@ function displayTable() {
         
         // 選択チェックボックス
         const selectCell = document.createElement('td');
-        selectCell.style.cssText = 'width: 80px; min-width: 80px; max-width: 80px; padding: 8px; text-align: center; box-sizing: border-box;';
+        selectCell.className = 'select-column';
+        selectCell.style.cssText = 'width: 60px !important; min-width: 60px !important; max-width: 60px !important; padding: 8px; text-align: center; box-sizing: border-box;';
         const checkbox = document.createElement('input');
         checkbox.type = 'checkbox';
+        checkbox.style.width = '20px';
+        checkbox.style.height = '20px';
+        checkbox.style.cursor = 'pointer';
         checkbox.checked = selectedRows.has(globalIndex);
         checkbox.addEventListener('change', (e) => {
             if (e.target.checked) {
@@ -4746,24 +4865,28 @@ function displayTable() {
 
         // 詳細ボタン
         const detailCell = document.createElement('td');
-        detailCell.style.cssText = 'padding: 4px; width: 70px; min-width: 70px; max-width: 70px; box-sizing: border-box;';
+        detailCell.style.cssText = 'padding: 8px; width: 100px !important; min-width: 100px !important; max-width: 100px !important; box-sizing: border-box; text-align: center;';
+        
         const detailBtn = document.createElement('button');
-        detailBtn.className = 'btn-secondary detail-btn';
-        detailBtn.style.cssText = 'width: 100%; white-space: nowrap; border-radius: 4px; box-sizing: border-box;';
+        detailBtn.className = 'action-btn action-btn-detail';
+        detailBtn.style.padding = '8px 16px';
+        detailBtn.style.fontSize = '14px';
+        detailBtn.style.minWidth = '80px';
         detailBtn.textContent = '詳細';
         detailBtn.addEventListener('click', () => {
-            openDetailModal(row);
+            openRegisterModal('詳細', row);
         });
         detailCell.appendChild(detailBtn);
         tr.appendChild(detailCell);
 
-        // データセルを先に追加
+        // データセル
         columns.forEach(col => {
             const td = document.createElement('td');
             let cellValue = row[col] !== null && row[col] !== undefined ? row[col] : '';
+            const colLower = col.toLowerCase();
+            const displayName = getColumnDisplayName(col);
             
             // 受注金額の場合はカンマ区切りでフォーマット
-            const colLower = col.toLowerCase();
             if ((colLower.includes('order_price') || colLower.includes('orderprice') || colLower.includes('受注金額')) && cellValue !== '') {
                 const numValue = parseFloat(cellValue);
                 if (!isNaN(numValue)) {
@@ -4771,38 +4894,75 @@ function displayTable() {
                 }
             }
             
-            td.style.cssText = 'box-sizing: border-box; font-size: 12px; padding: 8px 6px; white-space: normal; word-wrap: break-word; overflow-wrap: break-word; max-width: 150px;';
+            // 幅を狭くする項目の判定
+            let extraStyle = '';
+            const isNarrow = 
+                colLower.includes('constructno') || colLower.includes('工事番号') ||
+                colLower.includes('eigyo') || colLower.includes('営業') ||
+                colLower.includes('owner') || colLower.includes('受注元') ||
+                colLower.includes('user') || colLower.includes('納品先') ||
+                colLower.includes('mitsumori') || colLower.includes('見積書') ||
+                colLower.includes('chuumon') || colLower.includes('注文書') ||
+                colLower.includes('seikyu') || colLower.includes('請求書') ||
+                colLower.includes('doc');
+
+            if (isNarrow) {
+                extraStyle = 'max-width: 100px; overflow: hidden; text-overflow: ellipsis;';
+                td.title = cellValue;
+            } else if (colLower.includes('constructname') || colLower.includes('工事名称')) {
+                extraStyle = 'max-width: 250px; overflow: hidden; text-overflow: ellipsis;';
+                td.title = cellValue;
+            }
+            
+            td.style.cssText = `box-sizing: border-box; font-size: 14px; padding: 12px 10px; white-space: nowrap !important; ${extraStyle}`;
             td.textContent = cellValue;
             tr.appendChild(td);
         });
 
-        // 操作ボタン（削除・複製）を最後（右端）に追加
+        // 操作ボタン（削除・複製・編集）
         const actionCell = document.createElement('td');
         actionCell.className = 'action-buttons-cell';
-        actionCell.style.cssText = 'width: 120px; min-width: 120px; max-width: 120px; box-sizing: border-box; vertical-align: middle;';
+        actionCell.style.cssText = 'width: 220px; min-width: 220px; max-width: 220px; box-sizing: border-box; vertical-align: middle; padding: 8px; display: flex; gap: 8px; justify-content: center;';
+        
         const deleteBtn = document.createElement('button');
         deleteBtn.className = 'action-btn action-btn-delete';
+        deleteBtn.style.flex = '0 0 38px';
+        deleteBtn.style.height = '38px';
         deleteBtn.title = '削除';
-        deleteBtn.setAttribute('aria-label', '削除');
         deleteBtn.addEventListener('click', (e) => {
             e.stopPropagation();
             deleteRow(row);
         });
+
+        const editBtn = document.createElement('button');
+        editBtn.className = 'action-btn action-btn-edit';
+        editBtn.style.padding = '8px 12px';
+        editBtn.style.fontSize = '13px';
+        editBtn.style.height = '38px';
+        editBtn.textContent = '編集';
+        editBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            openRegisterModal('編集', row);
+        });
+
         const duplicateBtn = document.createElement('button');
         duplicateBtn.className = 'action-btn action-btn-duplicate';
+        duplicateBtn.style.padding = '8px 12px';
+        duplicateBtn.style.fontSize = '13px';
+        duplicateBtn.style.height = '38px';
         duplicateBtn.textContent = '複製';
         duplicateBtn.addEventListener('click', (e) => {
             e.stopPropagation();
-            // 複製データを準備（IDとタイムスタンプを除外）
             const duplicateData = { ...row };
             if (duplicateData.id !== undefined) delete duplicateData.id;
             if (duplicateData.created_at !== undefined) delete duplicateData.created_at;
             if (duplicateData.updated_at !== undefined) delete duplicateData.updated_at;
             if (duplicateData.deleted_at !== undefined) delete duplicateData.deleted_at;
-            // 複製モーダルを開く（データを自動入力）
             openRegisterModal('複製', duplicateData);
         });
+        
         actionCell.appendChild(deleteBtn);
+        actionCell.appendChild(editBtn);
         actionCell.appendChild(duplicateBtn);
         tr.appendChild(actionCell);
 
@@ -4819,12 +4979,33 @@ function displayTable() {
 // ページネーション情報の更新
 function updatePaginationInfo() {
     const total = filteredData.length;
-    const maxPage = Math.ceil(total / itemsPerPage);
-    const start = (currentPage - 1) * itemsPerPage + 1;
-    const end = Math.min(currentPage * itemsPerPage, total);
+    const all = tableData.length;
     
-    document.getElementById('page-info').textContent = 
-        `${currentPage}/${maxPage}ページ (${start}-${end}/該当レコード数: ${total} / 全レコード数: ${tableData.length})`;
+    const pageInfoEl = document.getElementById('page-info');
+    if (pageInfoEl) {
+        pageInfoEl.innerHTML = `<span style="color: #60a5fa; font-weight: 700;">${total}</span> <span style="opacity: 0.5; font-size: 0.9em;">/ ${all}</span>`;
+    }
+}
+
+// 日付文字列をパースする（YYYY/MM/DD, YYYY-MM-DD, YYYYMMDD 対応）
+function parseDateString(dateStr) {
+    if (!dateStr) return null;
+    
+    // 数字のみの場合 (YYYYMMDD)
+    if (/^\d{8}$/.test(dateStr)) {
+        const y = parseInt(dateStr.substring(0, 4));
+        const m = parseInt(dateStr.substring(4, 6)) - 1;
+        const d = parseInt(dateStr.substring(6, 8));
+        return new Date(y, m, d);
+    }
+    
+    // 区切り文字がある場合
+    const date = new Date(dateStr);
+    if (!isNaN(date.getTime())) {
+        return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+    }
+    
+    return null;
 }
 
 // フィルターの適用
@@ -4832,32 +5013,63 @@ function applyFilters() {
     const globalSearch = document.getElementById('filter-global-search').value.trim();
     const columnSelect = document.getElementById('filter-column-select');
     const selectedColumn = columnSelect ? columnSelect.value : '';
+    
+    const dateStartStr = document.getElementById('filter-date-start').value.trim();
+    const dateEndStr = document.getElementById('filter-date-end').value.trim();
+    
+    const dateStart = parseDateString(dateStartStr);
+    const dateEnd = parseDateString(dateEndStr);
 
     filteredData = tableData.filter(row => {
-        // 検索キーワードが入力されていない場合はすべて表示
-        if (!globalSearch) {
-            return true;
-        }
-
-            const searchLower = globalSearch.toLowerCase();
-        
-        // カラムが選択されていない場合は全体検索（すべてのカラムを対象）
+        // カラムが選択されていない場合は全体検索（キーワード検索のみ）
         if (!selectedColumn) {
-            let found = false;
-            // すべてのカラムの値を確認
+            if (!globalSearch) return true;
+            const searchLower = globalSearch.toLowerCase();
             for (const key in row) {
                 const value = String(row[key] || '').toLowerCase();
-                if (value.includes(searchLower)) {
-                    found = true;
-                    break;
-                }
+                if (value.includes(searchLower)) return true;
             }
-            return found;
+            return false;
+        }
+
+        // 選択されたカラムが日付系かどうか判定
+        const colLower = selectedColumn.toLowerCase();
+        const displayName = getColumnDisplayName(selectedColumn);
+        const isDateColumn = colLower.includes('date') || colLower.includes('time') || 
+                           displayName.includes('日') || displayName.includes('時');
+
+        if (isDateColumn) {
+            // 日付範囲検索
+            const cellValue = row[selectedColumn];
+            
+            // 検索条件がどちらも空なら、データが空でも表示する
+            if (!dateStartStr && !dateEndStr) return true;
+            
+            // 検索条件があるのにデータが空なら非表示
+            if (!cellValue) return false;
+            
+            const cellDate = new Date(cellValue);
+            if (isNaN(cellDate.getTime())) return true; // 有効な日付でない場合は除外しない
+            
+            // 比較用に時刻を 00:00:00 に統一
+            const compareDate = new Date(cellDate.getFullYear(), cellDate.getMonth(), cellDate.getDate());
+            
+            if (dateStart) {
+                if (compareDate < dateStart) return false;
+            }
+            
+            if (dateEnd) {
+                if (compareDate > dateEnd) return false;
+            }
+            
+            return true;
         } else {
-            // 選択されたカラムのみで検索
+            // 通常のキーワード検索
+            if (!globalSearch) return true;
+            const searchLower = globalSearch.toLowerCase();
             const cellValue = String(row[selectedColumn] || '').toLowerCase();
             return cellValue.includes(searchLower);
-            }
+        }
     });
 
     currentPage = 1;
@@ -4869,10 +5081,21 @@ function applyFilters() {
 // フィルターのクリア
 function clearFilters() {
     document.getElementById('filter-global-search').value = '';
+    const dateStartInput = document.getElementById('filter-date-start');
+    const dateEndInput = document.getElementById('filter-date-end');
+    if (dateStartInput) dateStartInput.value = '';
+    if (dateEndInput) dateEndInput.value = '';
+    
     const columnSelect = document.getElementById('filter-column-select');
     if (columnSelect) {
         columnSelect.value = '';
     }
+    
+    // 表示状態をリセット
+    document.getElementById('filter-global-search').style.display = 'block';
+    const dateRangeContainer = document.getElementById('filter-date-range');
+    if (dateRangeContainer) dateRangeContainer.style.display = 'none';
+    
     filteredData = [...tableData];
     currentPage = 1;
     selectedRows.clear();
@@ -4899,7 +5122,23 @@ function deselectAllRows() {
 
 // 選択情報の更新
 function updateSelectionInfo() {
-    document.getElementById('selection-count').textContent = `選択数: ${selectedRows.size}`;
+    const count = selectedRows.size;
+    const selectionCountEl = document.getElementById('selection-count');
+    const selectionGroup = document.querySelector('.selection-group');
+    
+    if (selectionCountEl) {
+        selectionCountEl.innerHTML = `<i class="fas fa-check-circle" style="color: ${count > 0 ? '#10b981' : '#cbd5e1'};"></i> 選択: <strong>${count}</strong>`;
+    }
+    
+    if (selectionGroup) {
+        if (count > 0) {
+            selectionGroup.style.borderColor = '#10b981';
+            selectionGroup.style.background = '#f0fdf4';
+        } else {
+            selectionGroup.style.borderColor = '#e2e8f0';
+            selectionGroup.style.background = '#ffffff';
+        }
+    }
 }
 
 // 削除対象の行を保持
@@ -5126,16 +5365,75 @@ function parseCSVLine(line) {
 }
 
 // 詳細表示モーダルを開く
-function openDetailModal(data) {
-    if (!data) return;
+// テーブル名を正規化する関数
+function normalizeTableName(tableName) {
+    if (!tableName) return '';
+    return tableName.toLowerCase().replace(/[\s_]/g, '');
+}
+
+// 正規化されたテーブル名でTABLE_MODAL_CONFIGSを検索
+function findTableConfig(tableName) {
+    if (!tableName || !window.TABLE_MODAL_CONFIGS) return null;
     
+    // まず完全一致を試す
+    if (window.TABLE_MODAL_CONFIGS[tableName]) {
+        return window.TABLE_MODAL_CONFIGS[tableName];
+    }
+    
+    // 小文字で試す
+    const lowerTable = tableName.toLowerCase();
+    if (window.TABLE_MODAL_CONFIGS[lowerTable]) {
+        return window.TABLE_MODAL_CONFIGS[lowerTable];
+    }
+    
+    // 正規化して検索
+    const normalized = normalizeTableName(tableName);
+    
+    for (const key in window.TABLE_MODAL_CONFIGS) {
+        if (normalizeTableName(key) === normalized) {
+            return window.TABLE_MODAL_CONFIGS[key];
+        }
+    }
+    
+    return null;
+}
+
+function openDetailModal(data) {
+    if (!data) {
+        console.error('openDetailModal: data is null or undefined');
+        return;
+    }
+    
+    // カスタムモーダル設定があるかチェック
+    const config = findTableConfig(currentTable);
+    if (config) {
+        if (typeof window.openCustomTableModal === 'function') {
+            return window.openCustomTableModal(currentTable, data, 'view');
+        }
+    }
+    
+    // t_staffcodeの場合は専用のプロフィールモーダルを使用
+    const normalizedTable = normalizeTableName(currentTable || '');
+    if (normalizedTable === 'tstaffcode' || normalizedTable === 'staffcode') {
+        if (typeof window.openStaffProfileModal === 'function') {
+            return window.openStaffProfileModal(data, 'view');
+        }
+    }
+    
+    // デフォルトの詳細モーダルを開く
     const modal = document.getElementById('detail-modal');
     const titleEl = document.getElementById('detail-modal-title');
     const container = document.getElementById('detail-modal-content');
     
+    if (!modal) {
+        console.error('detail-modal element not found!');
+        return;
+    }
+    
     titleEl.textContent = '詳細';
     modal.style.display = 'flex';
     container.innerHTML = '';
+    console.log('======================================');
     
     if (!currentTable) {
         showMessage('テーブルを選択してください', 'warning');
@@ -5201,6 +5499,34 @@ function closeDetailModal() {
 
 // 登録・編集モーダルを開く
 function openRegisterModal(title, data) {
+    console.log('=== openRegisterModal ===');
+    console.log('title:', title);
+    console.log('currentTable:', currentTable);
+    
+    // カスタムモーダル設定があるかチェック
+    const config = findTableConfig(currentTable);
+    
+    if (config) {
+        let mode = 'new';
+        if (title === '編集' || title === '詳細') mode = 'edit';
+        else if (title === '複製') mode = 'duplicate';
+        
+        console.log('→ Opening custom table modal in mode:', mode);
+        if (typeof window.openCustomTableModal === 'function') {
+            return window.openCustomTableModal(currentTable, data || {}, mode);
+        }
+    }
+    
+    // t_staffcodeで設定がない場合（念のため）
+    const normalizedTable = normalizeTableName(currentTable || '');
+    if ((normalizedTable === 'tstaffcode' || normalizedTable === 'staffcode') && title !== '新規登録') {
+        if (typeof window.openStaffProfileModal === 'function') {
+            return window.openStaffProfileModal(data || {}, 'edit');
+        }
+    }
+    
+    // デフォルトの登録・編集モーダルを開く
+    console.log('→ Opening default register modal');
     document.getElementById('modal-title').textContent = title;
     const modal = document.getElementById('register-modal');
     modal.style.display = 'flex';
@@ -5253,6 +5579,7 @@ function openRegisterModal(title, data) {
 }
 
 // 作業票登録ページを初期化
+// 作業票登録ページを初期化
 function initializeWorkTicketPage() {
     const container = document.getElementById('work-ticket-form-container');
     if (container) {
@@ -5264,337 +5591,1233 @@ function initializeWorkTicketPage() {
 function generateWorkTicketFormPage(container) {
     const today = new Date().toISOString().split('T')[0];
     
-    container.className = 'work-ticket-form';
+    container.style.cssText = 'padding: 12px; height: 100%; overflow: hidden; background: linear-gradient(135deg, #f5f7fa 0%, #e8ecf1 100%);';
     container.innerHTML = `
+        <div style="height: 100%; display: flex; flex-direction: column; gap: 8px;">
         <!-- ヘッダー -->
-        <div class="work-ticket-header">
-            <div class="work-ticket-header-left">
-                <div class="work-ticket-date-controls">
-                    <button type="button" onclick="changeWorkTicketDate(-1)"><i class="fas fa-chevron-left"></i> 一日戻る</button>
-                    <input type="date" id="work-ticket-date" value="${today}" style="padding: 10px 16px; border: 2px solid rgba(255,255,255,0.3); border-radius: 10px; background: rgba(255,255,255,0.2); color: white; font-size: 15px; font-weight: 600; cursor: pointer; backdrop-filter: blur(10px);">
-                    <button type="button" onclick="changeWorkTicketDate(0)">本日</button>
-                    <button type="button" onclick="changeWorkTicketDate(1)">一日進む <i class="fas fa-chevron-right"></i></button>
+            <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; background: white; border-radius: 8px; box-shadow: 0 1px 4px rgba(0,0,0,0.05); flex-shrink: 0;">
+                <div style="display: flex; align-items: center; gap: 16px;">
+                    <h2 style="background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; font-size: 24px; font-weight: 700; margin: 0;">
+                        <i class="fas fa-clipboard-list" style="margin-right: 8px; color: var(--primary);"></i>作業票登録
+                    </h2>
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <button type="button" class="btn-secondary" onclick="changeWorkTicketDate(-1)" style="padding: 6px 12px; font-size: 12px;">
+                            <i class="fas fa-chevron-left"></i>
+                        </button>
+                        <input type="date" id="work-ticket-date" value="${today}" class="form-input" style="font-size: 13px; padding: 6px 10px; font-weight: 600; min-width: 140px;">
+                        <button type="button" class="btn-secondary" onclick="changeWorkTicketDate(0)" style="padding: 6px 12px; font-size: 12px;">本日</button>
+                        <button type="button" class="btn-secondary" onclick="changeWorkTicketDate(1)" style="padding: 6px 12px; font-size: 12px;">
+                            <i class="fas fa-chevron-right"></i>
+                        </button>
                 </div>
             </div>
-            <div class="work-ticket-header-right">
-                <button type="button" class="btn-secondary" onclick="showPage('register')" style="background: rgba(255,255,255,0.2); border: 2px solid rgba(255,255,255,0.3); color: white; padding: 10px 20px; border-radius: 10px; font-weight: 600; cursor: pointer; transition: all 0.3s;" onmouseover="this.style.background='rgba(255,255,255,0.3)'" onmouseout="this.style.background='rgba(255,255,255,0.2)'">更新・削除へ</button>
-                <button type="button" class="btn-primary" onclick="saveWorkTicket()" style="background: rgba(255,107,107,0.9); border: 2px solid rgba(255,255,255,0.3); color: white; padding: 10px 24px; border-radius: 10px; font-weight: 600; cursor: pointer; transition: all 0.3s; box-shadow: 0 4px 12px rgba(0,0,0,0.2);" onmouseover="this.style.background='rgba(255,107,107,1)'" onmouseout="this.style.background='rgba(255,107,107,0.9)'">登録</button>
-            </div>
+                <div style="display: flex; gap: 8px; align-items: center;">
+                    <button type="button" class="btn-secondary" onclick="showPage('register')" style="padding: 8px 16px; font-size: 13px;">
+                        <i class="fas fa-arrow-left"></i> 戻る
+                    </button>
+                    <button type="button" class="btn-primary" onclick="saveWorkTicket()" style="padding: 8px 20px; font-size: 14px; font-weight: 700; background: linear-gradient(135deg, #4CAF50 0%, #388e3c 100%);">
+                        <i class="fas fa-save"></i> 登録
+                    </button>
         </div>
-
-        <!-- メインコンテンツ -->
-        <div class="work-ticket-main-content">
-            <!-- 左：作業詳細 -->
-            <div class="work-ticket-section">
-                <div class="work-ticket-section-title">
-                    <i class="fas fa-tools"></i>
-                    作業詳細
                 </div>
-                <div class="work-ticket-section-fields">
-                    <div class="work-ticket-field-group">
-                        <label><i class="fas fa-user"></i> 作業者</label>
-                        <select name="worker" id="work-ticket-worker" class="form-input">
+
+            <!-- メインフォーム -->
+            <div style="display: flex; flex-direction: column; gap: 10px; flex: 1; min-height: 0;">
+                <!-- 上段：基本情報（横並び） -->
+                <div style="display: grid; grid-template-columns: 280px 1.5fr 1.5fr; gap: 10px; flex-shrink: 0;">
+                    <!-- 作業者情報 -->
+                    <div style="background: linear-gradient(135deg, #4A90E2 0%, #357ABD 100%); border-radius: 12px; padding: 14px; box-shadow: 0 4px 12px rgba(74, 144, 226, 0.3); position: relative; overflow: hidden;">
+                        <div style="position: absolute; top: -20px; right: -20px; width: 80px; height: 80px; background: rgba(255,255,255,0.1); border-radius: 50%;"></div>
+                        <div style="position: relative; z-index: 1;">
+                            <h3 style="margin: 0 0 12px 0; font-size: 14px; font-weight: 700; color: white; display: flex; align-items: center; gap: 8px; text-shadow: 0 2px 4px rgba(0,0,0,0.2);">
+                                <i class="fas fa-user-circle" style="font-size: 16px;"></i> 作業者情報
+                            </h3>
+                            <div style="display: flex; flex-direction: column; gap: 10px;">
+                                <div>
+                                    <label style="display: block; margin-bottom: 6px; font-weight: 600; color: white; font-size: 11px; text-shadow: 0 1px 2px rgba(0,0,0,0.2);">
+                                        作業者 <span style="color: #FFD700;">*</span>
+                                    </label>
+                                    <select name="worker" id="work-ticket-worker" class="form-input" required style="font-size: 13px; padding: 8px 10px; width: 100%; border: none; box-shadow: 0 2px 6px rgba(0,0,0,0.15);" onchange="onWorkerChange(this.value)">
                             <option value="">読み込み中...</option>
                         </select>
                     </div>
-                    <div class="work-ticket-field-group">
-                        <label><i class="fas fa-building"></i> 部署・役割</label>
-                        <div class="work-ticket-radio-group">
-                            <label class="work-ticket-radio-item">
-                                <input type="radio" name="department" value="品質保証部・管理部・操業部・電気技術部・製造管理部・明石製造部">
-                                <span>品質保証部・管理部・操業部・電気技術部・製造管理部・明石製造部</span>
-                            </label>
-                            <label class="work-ticket-radio-item">
-                                <input type="radio" name="department" value="明石" checked>
-                                <span>明石</span>
-                            </label>
-                            <label class="work-ticket-radio-item">
-                                <input type="radio" name="department" value="組立">
-                                <span>組立</span>
-                            </label>
-                            <label class="work-ticket-radio-item">
-                                <input type="radio" name="department" value="操業">
-                                <span>操業</span>
-                            </label>
-                            <label class="work-ticket-radio-item">
-                                <input type="radio" name="department" value="電気技術">
-                                <span>電気技術</span>
-                            </label>
+                                <div style="display: flex; gap: 8px;">
+                                    <div style="flex: 1;">
+                                        <label style="display: block; margin-bottom: 6px; font-weight: 600; color: white; font-size: 11px; text-shadow: 0 1px 2px rgba(0,0,0,0.2);">
+                                            所属部署
+                                        </label>
+                                        <input type="text" id="work-ticket-worker-depa" class="form-input" style="font-size: 12px; padding: 8px; width: 100%; background: rgba(255,255,255,0.2); color: white; border: 1px solid rgba(255,255,255,0.3);" readonly>
+                                    </div>
+                                </div>
+                                <div>
+                                    <label style="display: block; margin-bottom: 6px; font-weight: 600; color: white; font-size: 11px; text-shadow: 0 1px 2px rgba(0,0,0,0.2);">
+                                        入力モード (部門) <span style="color: #FFD700;">*</span>
+                                    </label>
+                                    <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px;">
+                                    <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 6px 8px; border-radius: 6px; background: rgba(255,255,255,0.95); border: 2px solid transparent; transition: all 0.2s; font-size: 11px; font-weight: 600; box-shadow: 0 2px 4px rgba(0,0,0,0.1);" onmouseover="this.style.borderColor='#FFD700'; this.style.boxShadow='0 3px 6px rgba(0,0,0,0.15)'" onmouseout="this.style.borderColor='transparent'; this.style.boxShadow='0 2px 4px rgba(0,0,0,0.1)'">
+                                        <input type="radio" name="department" value="明石" checked style="margin: 0; accent-color: var(--primary);" onchange="updateWorkTicketValidation()">
+                                        <span>明石</span>
+                                    </label>
+                                    <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 6px 8px; border-radius: 6px; background: rgba(255,255,255,0.95); border: 2px solid transparent; transition: all 0.2s; font-size: 11px; font-weight: 600; box-shadow: 0 2px 4px rgba(0,0,0,0.1);" onmouseover="this.style.borderColor='#FFD700'; this.style.boxShadow='0 3px 6px rgba(0,0,0,0.15)'" onmouseout="this.style.borderColor='transparent'; this.style.boxShadow='0 2px 4px rgba(0,0,0,0.1)'">
+                                        <input type="radio" name="department" value="組立" style="margin: 0; accent-color: var(--primary);" onchange="updateWorkTicketValidation()">
+                                        <span>組立</span>
+                                    </label>
+                                    <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 6px 8px; border-radius: 6px; background: rgba(255,255,255,0.95); border: 2px solid transparent; transition: all 0.2s; font-size: 11px; font-weight: 600; box-shadow: 0 2px 4px rgba(0,0,0,0.1);" onmouseover="this.style.borderColor='#FFD700'; this.style.boxShadow='0 3px 6px rgba(0,0,0,0.15)'" onmouseout="this.style.borderColor='transparent'; this.style.boxShadow='0 2px 4px rgba(0,0,0,0.1)'">
+                                        <input type="radio" name="department" value="操業" style="margin: 0; accent-color: var(--primary);" onchange="updateWorkTicketValidation()">
+                                        <span>操業</span>
+                                    </label>
+                                    <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 6px 8px; border-radius: 6px; background: rgba(255,255,255,0.95); border: 2px solid transparent; transition: all 0.2s; font-size: 11px; font-weight: 600; box-shadow: 0 2px 4px rgba(0,0,0,0.1);" onmouseover="this.style.borderColor='#FFD700'; this.style.boxShadow='0 3px 6px rgba(0,0,0,0.15)'" onmouseout="this.style.borderColor='transparent'; this.style.boxShadow='0 2px 4px rgba(0,0,0,0.1)'">
+                                        <input type="radio" name="department" value="電気技術" style="margin: 0; accent-color: var(--primary);" onchange="updateWorkTicketValidation()">
+                                        <span>電気技術</span>
+                                    </label>
+                                </div>
+                    </div>
                         </div>
                     </div>
-                    <div class="work-ticket-field-group">
-                        <label><i class="fas fa-check-square"></i> オプション</label>
-                        <div class="work-ticket-checkbox-group">
-                            <label class="work-ticket-checkbox-item">
-                                <input type="checkbox" name="no_drawing" id="work-ticket-no-drawing" value="1">
-                                <span>図面番号がない作業</span>
-                            </label>
-                            <label class="work-ticket-checkbox-item">
-                                <input type="checkbox" name="svsv_mtmt" id="work-ticket-svsv-mtmt" value="1">
-                                <span>SVSVまたはMTMT</span>
-                            </label>
-                        </div>
                     </div>
-                    <div class="work-ticket-field-group">
-                        <label><i class="fas fa-briefcase"></i> 職種</label>
-                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
-                            <select name="job_type_1" id="work-ticket-job-type-1" class="form-input">
-                                <option value="">選択してください</option>
-                            </select>
-                            <select name="job_type_2" id="work-ticket-job-type-2" class="form-input">
-                                <option value="">選択してください</option>
-                            </select>
-                        </div>
-                    </div>
-                    <div class="work-ticket-field-group">
-                        <label><i class="fas fa-hashtag"></i> 工事番号</label>
-                        <div style="display: grid; grid-template-columns: 1fr auto 1fr; gap: 12px; align-items: center;">
-                            <input type="text" name="construct_no" id="work-ticket-construct-no" class="form-input" placeholder="工事番号">
-                            <select name="machine_type" id="work-ticket-machine-type" class="form-input" style="min-width: 100px;">
-                                <option value="機械">機械</option>
-                            </select>
-                            <input type="text" name="unit" id="work-ticket-unit" class="form-input" placeholder="ユニット">
-                        </div>
-                    </div>
-                    <div class="work-ticket-field-group">
-                        <label class="work-ticket-checkbox-item" style="margin: 0;">
-                            <input type="checkbox" name="register_with_unit" id="work-ticket-register-with-unit" value="1">
-                            <span>ユニット記号で登録(組立部のみ)</span>
-                        </label>
-                    </div>
-                    <div class="work-ticket-field-group">
-                        <label><i class="fas fa-file-alt"></i> 図面番号</label>
-                        <input type="text" name="drawing_no" id="work-ticket-drawing-no" class="form-input" placeholder="図面番号">
-                    </div>
-                    <div class="work-ticket-field-group">
-                        <label><i class="fas fa-barcode"></i> 品番</label>
-                        <input type="text" name="part_no" id="work-ticket-part-no" class="form-input" placeholder="品番">
-                    </div>
-                    <div class="work-ticket-action-buttons">
-                        <button type="button" class="btn-clear" onclick="clearWorkTicketForm()">
-                            <i class="fas fa-eraser"></i> 入力クリア
-                        </button>
-                        <button type="button" class="btn-add" onclick="addWorkTicketItem()">
-                            <i class="fas fa-plus"></i> 作業追加
-                        </button>
-                    </div>
-                </div>
-            </div>
 
-            <!-- 右：受注情報 -->
-            <div class="work-ticket-section">
-                <div class="work-ticket-section-title">
-                    <i class="fas fa-clipboard-list"></i>
-                    受注情報
-                </div>
-                <div class="work-ticket-section-fields">
-                    <div class="work-ticket-field-group">
-                        <label><i class="fas fa-project-diagram"></i> 工事名</label>
-                        <input type="text" name="project_name" id="work-ticket-project-name" class="form-input" placeholder="工事名">
+                    <!-- 職種・オプション + 工事図面情報（横並び） -->
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                        <!-- 職種・オプション -->
+                        <div style="background: linear-gradient(135deg, #6BCB77 0%, #4CAF50 100%); border-radius: 12px; padding: 12px; box-shadow: 0 4px 12px rgba(107, 203, 119, 0.3); position: relative; overflow: hidden;">
+                            <div style="position: absolute; top: -15px; right: -15px; width: 60px; height: 60px; background: rgba(255,255,255,0.15); border-radius: 50%;"></div>
+                            <div style="position: relative; z-index: 1;">
+                                <h3 style="margin: 0 0 10px 0; font-size: 14px; font-weight: 700; color: white; display: flex; align-items: center; gap: 6px; text-shadow: 0 2px 4px rgba(0,0,0,0.2);">
+                                    <i class="fas fa-tools" style="font-size: 14px;"></i> 職種・オプション
+                                </h3>
+                                <div style="display: flex; flex-direction: column; gap: 8px;">
+                                    <div>
+                                        <label style="display: block; margin-bottom: 4px; font-weight: 600; color: white; font-size: 12px; text-shadow: 0 1px 2px rgba(0,0,0,0.2);">職種</label>
+                                        <select name="job_type_1" id="work-ticket-job-type-1" class="form-input" style="width: 100%; font-size: 12px; padding: 6px 8px; border: none; box-shadow: 0 2px 6px rgba(0,0,0,0.15); color: #333; background: white;">
+                                            <option value="">選択</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label style="display: block; margin-bottom: 4px; font-weight: 600; color: white; font-size: 12px; text-shadow: 0 1px 2px rgba(0,0,0,0.2);">オプション</label>
+                                        <div style="display: grid; grid-template-columns: 1fr 1.2fr; gap: 8px;">
+                                            <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 6px 8px; border-radius: 6px; background: rgba(255,255,255,0.95); border: 2px solid transparent; transition: all 0.2s; font-size: 12px; font-weight: 600; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                                                <input type="checkbox" name="no_drawing" id="work-ticket-no-drawing" value="1" style="margin: 0; accent-color: #4CAF50;">
+                                                <span style="white-space: nowrap;">図面なし</span>
+                                            </label>
+                                            <div style="display: flex; flex-direction: column; gap: 4px; background: rgba(255,255,255,0.95); padding: 6px; border-radius: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                                                <div style="display: flex; gap: 10px; justify-content: center;">
+                                                    <label style="display: flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 700; color: #2e7d32; cursor: pointer;">
+                                                        <input type="checkbox" id="work-ticket-sv-check" value="SV" style="margin: 0; accent-color: #4CAF50;"> SV
+                                                    </label>
+                                                    <label style="display: flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 700; color: #2e7d32; cursor: pointer;">
+                                                        <input type="checkbox" id="work-ticket-mt-check" value="MT" style="margin: 0; accent-color: #4CAF50;"> MT
+                                                    </label>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 工事番号・図面情報 -->
+                        <div style="background: linear-gradient(135deg, #FF8C42 0%, #FF6B35 100%); border-radius: 12px; padding: 12px; box-shadow: 0 4px 12px rgba(255, 140, 66, 0.3); position: relative; overflow: hidden;">
+                            <div style="position: absolute; bottom: -20px; left: -20px; width: 70px; height: 70px; background: rgba(255,255,255,0.12); border-radius: 50%;"></div>
+                            <div style="position: relative; z-index: 1;">
+                                <h3 style="margin: 0 0 10px 0; font-size: 14px; font-weight: 700; color: white; display: flex; align-items: center; gap: 6px; text-shadow: 0 2px 4px rgba(0,0,0,0.2);">
+                                    <i class="fas fa-hashtag" style="font-size: 14px;"></i> 工事・図面情報
+                                </h3>
+                                <div style="display: flex; flex-direction: column; gap: 8px;">
+                                    <div>
+                                        <label style="display: block; margin-bottom: 4px; font-weight: 600; color: white; font-size: 12px; text-shadow: 0 1px 2px rgba(0,0,0,0.2);">
+                                            工事番号 <span style="color: #FFD700;">*</span>
+                                        </label>
+                                        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px;">
+                                            <input type="text" name="construct_no" id="work-ticket-construct-no" class="form-input" placeholder="工事番号" required style="width: 100%; font-size: 12px; padding: 6px 8px; border: none; box-shadow: 0 2px 6px rgba(0,0,0,0.15);">
+                                            <select name="machine_type" id="work-ticket-machine-type" class="form-input" style="width: 100%; font-size: 12px; padding: 6px 4px; border: none; box-shadow: 0 2px 6px rgba(0,0,0,0.15);">
+                                                <option value="">機械</option>
+                                            </select>
+                                            <select name="unit" id="work-ticket-unit-select" class="form-input" style="width: 100%; font-size: 12px; padding: 6px 4px; border: none; box-shadow: 0 2px 6px rgba(0,0,0,0.15);">
+                                                <option value="">ユニット</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div style="display: flex; gap: 8px; width: 100%;">
+                                        <div style="flex: 1; min-width: 0;">
+                                            <label style="display: block; margin-bottom: 4px; font-weight: 600; color: white; font-size: 12px; text-shadow: 0 1px 2px rgba(0,0,0,0.2);">図面番号</label>
+                                            <input type="text" name="drawing_no" id="work-ticket-drawing-no" class="form-input" placeholder="図面番号" style="width: 100%; box-sizing: border-box; font-size: 12px; padding: 6px 8px; font-family: monospace; border: none; box-shadow: 0 2px 6px rgba(0,0,0,0.15);">
+                                        </div>
+                                        <div style="width: 60px; flex-shrink: 0;">
+                                            <label style="display: block; margin-bottom: 4px; font-weight: 600; color: white; font-size: 12px; text-shadow: 0 1px 2px rgba(0,0,0,0.2);">品番</label>
+                                            <input type="text" name="part_no" id="work-ticket-part-no" class="form-input" placeholder="品番" style="width: 100%; box-sizing: border-box; font-size: 12px; padding: 6px 8px; border: none; box-shadow: 0 2px 6px rgba(0,0,0,0.15);">
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
-                    <div class="work-ticket-field-group">
-                        <label><i class="fas fa-building"></i> 注文元</label>
-                        <input type="text" name="order_from" id="work-ticket-order-from" class="form-input" placeholder="注文元">
-                    </div>
-                    <div class="work-ticket-field-group">
-                        <label><i class="fas fa-truck"></i> 納品先</label>
-                        <input type="text" name="delivery_to" id="work-ticket-delivery-to" class="form-input" placeholder="納品先">
-                    </div>
-                </div>
+
+                    <!-- 受注情報 + アクションボタン -->
+                    <div style="display: flex; flex-direction: column; gap: 10px;">
+                        <!-- 受注情報（自動取得） -->
+                        <div style="background: linear-gradient(135deg, #9B59B6 0%, #8E44AD 100%); border-radius: 12px; padding: 14px; box-shadow: 0 4px 12px rgba(155, 89, 182, 0.3); position: relative; overflow: hidden; flex: 1;">
+                            <div style="position: absolute; top: -10px; right: -10px; width: 50px; height: 50px; background: rgba(255,255,255,0.1); border-radius: 50%;"></div>
+                            <div style="position: relative; z-index: 1;">
+                                <h3 style="margin: 0 0 10px 0; font-size: 14px; font-weight: 700; color: white; display: flex; align-items: center; gap: 8px; text-shadow: 0 2px 4px rgba(0,0,0,0.2);">
+                                    <i class="fas fa-clipboard-check" style="font-size: 16px;"></i> 受注情報
+                                </h3>
+                                <p style="margin: 0 0 10px 0; font-size: 9px; color: rgba(255,255,255,0.9); line-height: 1.3; text-shadow: 0 1px 2px rgba(0,0,0,0.2);">
+                                    <i class="fas fa-magic" style="margin-right: 4px;"></i>工事番号入力で自動取得
+                                </p>
+                                <div style="display: flex; flex-direction: column; gap: 8px;">
+                                    <div style="width: 100%;">
+                                        <label style="display: block; margin-bottom: 4px; font-weight: 600; color: white; font-size: 11px; text-shadow: 0 1px 2px rgba(0,0,0,0.2);">工事名</label>
+                                        <input type="text" name="project_name" id="work-ticket-project-name" class="form-input" placeholder="工事名" readonly style="width: 100%; box-sizing: border-box; font-size: 11px; padding: 8px 10px; background: rgba(255,255,255,0.95); border: none; box-shadow: 0 2px 6px rgba(0,0,0,0.15);">
+                                    </div>
+                                    <div style="width: 100%;">
+                                        <label style="display: block; margin-bottom: 4px; font-weight: 600; color: white; font-size: 11px; text-shadow: 0 1px 2px rgba(0,0,0,0.2);">注文元</label>
+                                        <input type="text" name="order_from" id="work-ticket-order-from" class="form-input" placeholder="注文元" readonly style="width: 100%; box-sizing: border-box; font-size: 11px; padding: 8px 10px; background: rgba(255,255,255,0.95); border: none; box-shadow: 0 2px 6px rgba(0,0,0,0.15);">
+                                    </div>
+                                    <div style="width: 100%;">
+                                        <label style="display: block; margin-bottom: 4px; font-weight: 600; color: white; font-size: 11px; text-shadow: 0 1px 2px rgba(0,0,0,0.2);">納品先</label>
+                                        <input type="text" name="delivery_to" id="work-ticket-delivery-to" class="form-input" placeholder="納品先" readonly style="width: 100%; box-sizing: border-box; font-size: 11px; padding: 8px 10px; background: rgba(255,255,255,0.95); border: none; box-shadow: 0 2px 6px rgba(0,0,0,0.15);">
+                                    </div>
+                                </div>
             </div>
         </div>
 
-        <!-- 作業リストテーブル -->
-        <div class="work-ticket-list-table">
-            <table>
-                <thead>
-                    <tr>
-                        <th>削除</th>
-                        <th>工事番号</th>
-                        <th>図面番号/職種</th>
-                        <th>品番</th>
-                        <th>作業コード</th>
-                        <th>掛持</th>
-                        <th>無人</th>
-                        <th>緊急</th>
-                        <th>別製作</th>
-                        <th>指導</th>
-                        <th>作業名</th>
-                        <th>数量</th>
-                        <th>作業時間</th>
-                    </tr>
-                </thead>
+                        <!-- アクションボタン -->
+                        <div style="display: flex; gap: 8px;">
+                            <button type="button" class="btn-secondary" onclick="clearWorkTicketForm()" style="flex: 1; padding: 10px; font-size: 12px; font-weight: 700; border-radius: 8px; background: linear-gradient(135deg, #95a5a6 0%, #7f8c8d 100%); color: white; border: none; box-shadow: 0 3px 8px rgba(0,0,0,0.2); transition: all 0.3s;" onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 5px 12px rgba(0,0,0,0.3)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 3px 8px rgba(0,0,0,0.2)'">
+                                <i class="fas fa-eraser"></i> クリア
+                            </button>
+                            <button type="button" class="btn-primary" onclick="addWorkTicketItem()" style="flex: 1; padding: 10px; font-size: 12px; font-weight: 700; border-radius: 8px; background: linear-gradient(135deg, #4A90E2 0%, #357ABD 100%); color: white; border: none; box-shadow: 0 3px 8px rgba(74, 144, 226, 0.4); transition: all 0.2s;" onmouseover="this.style.transform='translateY(-1px)'; this.style.boxShadow='0 5px 15px rgba(74, 144, 226, 0.5)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 3px 8px rgba(74, 144, 226, 0.4)'">
+                                <i class="fas fa-plus-circle"></i> 作業追加
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 下段：作業リストテーブル -->
+                <div style="display: flex; flex-direction: column; gap: 8px; overflow: hidden; background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%); border-radius: 12px; padding: 12px; border: 3px solid #4A90E2; box-shadow: 0 6px 20px rgba(74, 144, 226, 0.25); flex: 1; min-height: 0;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; padding-bottom: 8px; border-bottom: 2px solid #4A90E2;">
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <h3 style="margin: 0; font-size: 16px; font-weight: 700; color: var(--primary); display: flex; align-items: center; gap: 8px;">
+                                <i class="fas fa-list-check" style="font-size: 18px; color: #4A90E2;"></i> 作業リスト
+                            </h3>
+                            <div style="display: flex; align-items: center; gap: 8px; padding: 6px 12px; background: linear-gradient(135deg, rgba(74, 144, 226, 0.1) 0%, rgba(74, 144, 226, 0.05) 100%); border-radius: 8px; border: 2px solid rgba(74, 144, 226, 0.3);">
+                                <i class="fas fa-clock" style="color: var(--primary); font-size: 14px;"></i>
+                                <label style="font-weight: 700; color: var(--primary); font-size: 12px;">合計:</label>
+                                <input type="text" name="total" id="work-ticket-total" value="0" readonly style="font-size: 18px; font-weight: 700; color: var(--primary); padding: 4px 10px; border: 2px solid var(--primary); border-radius: 6px; text-align: right; min-width: 70px; background: white; box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);">
+                                <span style="font-size: 12px; color: var(--text-secondary); font-weight: 600;">時間</span>
+                            </div>
+                        </div>
+                        <button type="button" class="btn-primary" onclick="saveWorkTicket()" style="padding: 10px 24px; font-size: 14px; font-weight: 700; border-radius: 8px; background: linear-gradient(135deg, #4CAF50 0%, #388e3c 100%); color: white; border: none; box-shadow: 0 4px 12px rgba(76, 175, 80, 0.4); transition: all 0.2s;" onmouseover="this.style.transform='translateY(-1px)'; this.style.boxShadow='0 6px 18px rgba(76, 175, 80, 0.5)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 12px rgba(76, 175, 80, 0.4)'">
+                            <i class="fas fa-save"></i> 登録
+                        </button>
+                    </div>
+                    <div style="overflow: visible; flex: 1; min-height: 0;">
+                        <table class="data-table" style="width: 100%; font-size: 15px; border-collapse: collapse; table-layout: fixed;">
+                            <thead style="position: sticky; top: 0; background: linear-gradient(135deg, #1e293b 0%, #334155 100%); z-index: 10; box-shadow: 0 4px 8px rgba(0,0,0,0.1);">
+                                <tr>
+                                <th style="width: 40px; padding: 10px 4px; text-align: center !important; font-size: 12px; font-weight: 700; color: white; text-shadow: 0 1px 2px rgba(0,0,0,0.2); border-bottom: 2px solid rgba(255,255,255,0.3);">削除</th>
+                                <th style="width: 50px; padding: 10px 6px; text-align: center !important; font-size: 12px; font-weight: 700; color: white; text-shadow: 0 1px 2px rgba(0,0,0,0.2); border-bottom: 2px solid rgba(255,255,255,0.3);">工事番号</th>
+                                <th style="width: 100px; padding: 10px 6px; text-align: center !important; font-size: 12px; font-weight: 700; color: white; text-shadow: 0 1px 2px rgba(0,0,0,0.2); border-bottom: 2px solid rgba(255,255,255,0.3);">図面/職種</th>
+                                <th style="width: 40px; padding: 10px 6px; text-align: center !important; font-size: 12px; font-weight: 700; color: white; text-shadow: 0 1px 2px rgba(0,0,0,0.2); border-bottom: 2px solid rgba(255,255,255,0.3);">品番</th>
+                                <th style="width: 150px; padding: 10px 6px; text-align: center !important; font-size: 12px; font-weight: 700; color: white; text-shadow: 0 1px 2px rgba(0,0,0,0.2); border-bottom: 2px solid rgba(255,255,255,0.3);">作業内容</th>
+                                <th style="width: 35px; padding: 10px 2px; text-align: center !important; font-size: 10px; font-weight: 700; color: white; border-bottom: 2px solid rgba(255,255,255,0.3);">掛持</th>
+                                <th style="width: 35px; padding: 10px 2px; text-align: center !important; font-size: 10px; font-weight: 700; color: white; border-bottom: 2px solid rgba(255,255,255,0.3);">無人</th>
+                                <th style="width: 35px; padding: 10px 2px; text-align: center !important; font-size: 10px; font-weight: 700; color: white; border-bottom: 2px solid rgba(255,255,255,0.3);">緊急</th>
+                                <th style="width: 35px; padding: 10px 2px; text-align: center !important; font-size: 10px; font-weight: 700; color: white; border-bottom: 2px solid rgba(255,255,255,0.3);">別製</th>
+                                <th style="width: 35px; padding: 10px 2px; text-align: center !important; font-size: 10px; font-weight: 700; color: white; border-bottom: 2px solid rgba(255,255,255,0.3);">指導</th>
+                                <th style="width: 60px; padding: 10px 6px; text-align: center !important; font-size: 12px; font-weight: 700; color: white; text-shadow: 0 1px 2px rgba(0,0,0,0.2); border-bottom: 2px solid rgba(255,255,255,0.3);">ｺｰﾄﾞ</th>
+                                <th style="width: 50px; padding: 10px 6px; text-align: center !important; font-size: 12px; font-weight: 700; color: white; text-shadow: 0 1px 2px rgba(0,0,0,0.2); border-bottom: 2px solid rgba(255,255,255,0.3);">数量</th>
+                                <th style="width: 60px; padding: 10px 6px; text-align: center !important; font-size: 12px; font-weight: 700; color: white; text-shadow: 0 1px 2px rgba(0,0,0,0.2); border-bottom: 2px solid rgba(255,255,255,0.3);">時間</th>
+                                </tr>
+                            </thead>
                 <tbody id="work-ticket-items-list">
                     <tr>
                         <td colspan="13" style="text-align: center; padding: 40px; color: var(--text-secondary);">
-                            <i class="fas fa-inbox" style="font-size: 32px; margin-bottom: 12px; display: block; opacity: 0.5;"></i>
-                            作業項目がありません
+                                        <div style="display: flex; flex-direction: column; align-items: center; gap: 12px;">
+                                            <i class="fas fa-clipboard-list" style="font-size: 48px; opacity: 0.2; color: var(--primary);"></i>
+                                            <div>
+                                                <span style="font-size: 13px; font-weight: 600; color: var(--text-secondary);">作業項目がありません</span>
+                                                <div style="font-size: 11px; color: var(--text-tertiary); margin-top: 4px;">上記のフォームから作業を追加してください</div>
+                                            </div>
+                                        </div>
                         </td>
                     </tr>
                 </tbody>
             </table>
         </div>
-
-        <!-- フッター -->
-        <div class="work-ticket-footer">
-            <div class="work-ticket-total">
-                <label>合計</label>
-                <input type="text" name="total" id="work-ticket-total" value="0" readonly>
+                </div>
             </div>
         </div>
     `;
     
     // 職種の選択肢を読み込む
-    loadJobTypesForWorkTicket();
+    setTimeout(() => loadJobTypesForWorkTicket(), 100);
+    
+    // 作業内容の選択肢を読み込む
+    setTimeout(() => loadWorkNamesForWorkTicket(), 200);
     
     // 作業者の選択肢を読み込む
-    loadWorkersForWorkTicket();
+    setTimeout(() => loadWorkersForWorkTicket(), 300);
+    
+    // 機械コードの選択肢を読み込む
+    setTimeout(() => loadMachineCodesForWorkTicket(), 350);
+    
+    // ユニットコードの選択肢を読み込む
+    setTimeout(() => loadUnitCodesForWorkTicket(), 400);
+    
+    // 工事番号入力時に受注情報を自動取得
+    setTimeout(() => {
+        const constructNoInput = document.getElementById('work-ticket-construct-no');
+        if (constructNoInput) {
+            constructNoInput.addEventListener('blur', async (event) => {
+                const constructNo = event.target.value.trim();
+                if (constructNo) {
+                    await fetchWorkTicketOrderInfo(constructNo);
+                }
+            });
+        }
+    }, 500);
 }
 
-// 職種の選択肢を読み込む
-async function loadJobTypesForWorkTicket() {
+// 作業票登録用：工事番号から受注情報を取得
+async function fetchWorkTicketOrderInfo(constructNo) {
+    if (!constructNo) {
+        return null;
+    }
+
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+        console.error('Supabaseクライアントが初期化されていません');
+        return null;
+    }
+
+    let orderInfo = null;
+
     try {
-        // 職種テーブルからデータを取得（テーブル名は実際のものに合わせて変更してください）
+        const acceptOrderTable = await findTableName(['t_acceptorder', 'T_AcceptOrder', 'acceptorder', 't acceptorder']);
+        if (acceptOrderTable) {
+            // 1. t_acceptorder から完全一致で検索（constructnoで検索、カラム名はすべて小文字）
+            let { data: acceptOrderData, error: acceptOrderError } = await supabase
+                .from(acceptOrderTable)
+                .select('constructno, constructname, ownercode, usercode, registerdate, orderdate, deliverydate')
+                .eq('constructno', constructNo)
+                .limit(1);
+
+            if (acceptOrderData && acceptOrderData.length > 0) {
+                orderInfo = acceptOrderData[0];
+                // カラム名はすべて小文字
+                orderInfo.ProjectName = orderInfo.constructname || ''; // マッピング
+                
+                const companyTable = await findTableName(['t_companycode', 'T_CompanyCode', 'companycode', 't companycode']);
+                
+                // ownercodeから会社名を取得（受注元）
+                if (orderInfo.ownercode && companyTable) {
+                    const ownerCodeValue = String(orderInfo.ownercode).trim();
+                    const { data: ownerCompanyData } = await supabase
+                        .from(companyTable)
+                        .select('companyname')
+                        .eq('companycode', ownerCodeValue)
+                        .limit(1);
+                    if (ownerCompanyData && ownerCompanyData.length > 0) {
+                        orderInfo.Client = ownerCompanyData[0].companyname || '';
+                    }
+                }
+                
+                // usercodeから会社名を取得（納品先）
+                if (orderInfo.usercode && !orderInfo.DeliveryDestination && companyTable) {
+                    const userCodeValue = String(orderInfo.usercode).trim();
+                    const { data: userCompanyData } = await supabase
+                        .from(companyTable)
+                        .select('companyname')
+                        .eq('companycode', userCodeValue)
+                        .limit(1);
+                    if (userCompanyData && userCompanyData.length > 0) {
+                        orderInfo.DeliveryDestination = userCompanyData[0].companyname || '';
+                    }
+                }
+            }
+        }
+
+        if (!orderInfo) {
+            // 2. T_Construction から完全一致で検索
+            const constructionTable = await findTableName(['t_construction', 'T_Construction', 'construction', 't construction']);
+            if (constructionTable) {
+                let { data: constructionData } = await supabase
+                    .from(constructionTable)
+                    .select('OrderNo, ConstructionName, CustomerCode, DeliveryDestination, SalesRepresentative, FactoryShipmentDate, RegisterDate')
+                    .eq('OrderNo', constructNo)
+                    .limit(1);
+
+                if (constructionData && constructionData.length > 0) {
+                    orderInfo = constructionData[0];
+                    
+                    const companyTable = await findTableName(['t_companycode', 'T_CompanyCode', 'companycode', 't companycode']);
+                    
+                    // customercodeからcompanynameを取得
+                    if (orderInfo.CustomerCode && companyTable) {
+                        const { data: companyData } = await supabase
+                            .from(companyTable)
+                            .select('companyname')
+                            .eq('companycode', orderInfo.CustomerCode)
+                            .limit(1);
+                        if (companyData && companyData.length > 0) {
+                            orderInfo.Client = companyData[0].companyname || '';
+                        }
+                    }
+                }
+            }
+        }
+
+        if (orderInfo) {
+            console.log('取得した受注情報:', orderInfo);
+            // フォームに自動入力（ポップアップは表示しない）
+            const projectNameInput = document.getElementById('work-ticket-project-name');
+            const orderFromInput = document.getElementById('work-ticket-order-from');
+            const deliveryToInput = document.getElementById('work-ticket-delivery-to');
+            
+            const projectName = orderInfo.ProjectName || orderInfo.ConstructionName || '';
+            const client = orderInfo.Client || '';
+            const deliveryDest = orderInfo.DeliveryDestination || '';
+            
+            console.log('フォームに設定する値:', { projectName, client, deliveryDest });
+            
+            if (projectNameInput) {
+                projectNameInput.value = projectName;
+                console.log('工事名を設定:', projectName);
+            }
+            if (orderFromInput) {
+                orderFromInput.value = client;
+                console.log('注文元を設定:', client);
+            }
+            if (deliveryToInput) {
+                deliveryToInput.value = deliveryDest;
+                console.log('納品先を設定:', deliveryDest);
+            }
+        } else {
+            // 受注情報が見つからない場合もポップアップは表示しない（以前の動作に戻す）
+            console.warn('この工事番号に対応する受注情報が見つかりませんでした:', constructNo);
+        }
+
+    } catch (error) {
+        console.error('受注情報取得エラー:', error);
+        // エラー時もポップアップは表示しない（以前の動作に戻す）
+    }
+    return orderInfo;
+}
+
+// テーブル名を探すヘルパー関数
+async function findTableName(variations) {
+    const supabase = getSupabaseClient();
+    if (!supabase) return null;
+    
+    for (const name of variations) {
+        try {
+            const { error } = await supabase.from(name).select('*').limit(1);
+            if (!error) return name;
+        } catch (e) {
+            // Ignore
+        }
+    }
+    return null;
+}
+
+// 機械コードの選択肢を読み込む
+async function loadMachineCodesForWorkTicket() {
+    try {
+        const supabase = getSupabaseClient();
+        if (!supabase) return;
+
+        const foundTable = await findTableName(['t_machinecode', 'T_MachineCode', 'machinecode', 't machine code']);
+        if (!foundTable) {
+            console.error('t_machinecodeテーブルが見つかりません');
+            return;
+        }
+
+        const { data, error } = await supabase
+            .from(foundTable)
+            .select('machinecode, machinename')
+            .order('machinecode', { ascending: true });
+
+        if (error) {
+            console.error('機械コードの取得に失敗:', error);
+            return;
+        }
+
+        const select = document.getElementById('work-ticket-machine-type');
+        if (select) {
+            select.innerHTML = '<option value="">選択</option>';
+            data.forEach(item => {
+                const option = document.createElement('option');
+                option.value = item.machinecode.trim();
+                option.textContent = item.machinecode.trim();
+                select.appendChild(option);
+            });
+        }
+    } catch (e) {
+        console.error('loadMachineCodesForWorkTicket error:', e);
+    }
+}
+
+// ユニットコードの選択肢を読み込む
+async function loadUnitCodesForWorkTicket() {
+    try {
+        const supabase = getSupabaseClient();
+        if (!supabase) return;
+
+        const foundTable = await findTableName(['t_unitcode', 'T_UnitCode', 'unitcode', 't unit code']);
+        if (!foundTable) {
+            console.error('t_unitcodeテーブルが見つかりません');
+            return;
+        }
+
+        const { data, error } = await supabase
+            .from(foundTable)
+            .select('*')
+            .order('UnitCode', { ascending: true });
+
+        if (error) {
+            console.error('ユニットコードの取得に失敗:', error);
+            return;
+        }
+
+        const select = document.getElementById('work-ticket-unit-select');
+        if (select) {
+            select.innerHTML = '<option value="">選択</option>';
+            data.forEach(item => {
+                const uCode = (item.UnitCode || item.unitcode || '').trim();
+                const uName = (item.UnitName || item.unitname || '').trim();
+                if (uCode) {
+                    const option = document.createElement('option');
+                    option.value = uCode;
+                    option.textContent = uName ? `${uCode} : ${uName}` : uCode;
+                    select.appendChild(option);
+                }
+            });
+        }
+    } catch (e) {
+        console.error('loadUnitCodesForWorkTicket error:', e);
+    }
+}
+
+// 職種の選択肢を読み込む（t_workdepartmentからWorkDepaを取得）
+// 職種の選択肢を読み込む（t_workdepartmentから取得）
+async function loadJobTypesForWorkTicket() {
+    console.log('--- loadJobTypesForWorkTicket 開始 ---');
+    try {
         const supabase = getSupabaseClient();
         if (!supabase) {
             console.warn('Supabaseクライアントが初期化されていません');
-            return;
-        }
-        const { data, error } = await supabase
-            .from('職種')
-            .select('*')
-            .order('職種名');
-        
-        if (error) {
-            console.warn('職種データの読み込みに失敗しました:', error);
-            // エラーが発生した場合は、デフォルトの選択肢を設定
             setDefaultJobTypes();
             return;
         }
         
-        // 職種1の選択肢を設定
+        const foundTable = await findTableName(['t_workdepartment', 'T_WorkDepartment', 'workdepartment', 't workdepartment']);
+        console.log('t_workdepartment テーブル名:', foundTable);
+
+        if (!foundTable) {
+            console.error('t_workdepartmentテーブルが見つかりません');
+            setDefaultJobTypes();
+            return;
+        }
+
+        // 全職種を取得（初期表示用）
+        const { data, error } = await supabase
+            .from(foundTable)
+            .select('*');
+        
+        if (error || !data) {
+            console.error('職種データの取得失敗:', error);
+            setDefaultJobTypes();
+            return;
+        }
+        
+        console.log('t_workdepartment 全データ取得結果:', data.length, '件');
+        
         const jobType1Select = document.getElementById('work-ticket-job-type-1');
-        if (jobType1Select && data) {
-            data.forEach(job => {
+        if (jobType1Select) {
+            jobType1Select.innerHTML = '<option value="">選択</option>';
+            const jobTypes = new Set();
+            data.forEach(item => {
+                // workdepa (職種名) を取得
+                const value = item.workdepa || item.WorkDepa || item.work_depa || item.SelectWorkCode || item.selectworkcode;
+                if (value) jobTypes.add(String(value).trim());
+            });
+            
+            const sortedJobTypes = Array.from(jobTypes).sort();
+            sortedJobTypes.forEach(jobType => {
                 const option = document.createElement('option');
-                option.value = job.職種コード || job.職種名 || job.id;
-                option.textContent = job.職種名 || job.名称 || job.name;
+                option.value = jobType;
+                option.textContent = jobType;
+                jobType1Select.appendChild(option);
+            });
+            
+            console.log('職種リストを読み込みました:', sortedJobTypes.length, '件');
+        }
+    } catch (err) {
+        console.error('loadJobTypesForWorkTicket error:', err);
+        setDefaultJobTypes();
+    }
+}
+
+// 作業内容の選択肢を読み込む（t_worktimecodeとt_workcodeから取得）
+async function loadWorkNamesForWorkTicket() {
+    console.log('--- loadWorkNamesForWorkTicket 開始 ---');
+    try {
+        const supabase = getSupabaseClient();
+        if (!supabase) return;
+
+        // 1. t_worktimecode (詳細作業) を取得
+        const workTimeCodeTable = await findTableName(['t_worktimecode', 'T_WorkTimeCode', 'worktimecode', 't worktimecode']);
+        console.log('t_worktimecode テーブル名:', workTimeCodeTable);
+        let detailWorkItems = [];
+        if (workTimeCodeTable) {
+            const { data, error } = await supabase.from(workTimeCodeTable).select('*');
+            if (!error && data) {
+                console.log('t_worktimecode データ取得:', data.length, '件');
+                detailWorkItems = data.map(item => ({
+                    WorkCode: (item.WorkCode || item.workcode || '').toString().trim(),
+                    WorkName: (item.WorkName || item.workname || '').toString().trim(),
+                    WorkGroup: (item.WorkGroup || item.workgroup || item.JobName || item.jobname || '詳細作業').toString().trim(),
+                    Kakemochi: item.Kakemochi === true || item.Kakemochi === 1 || item.Kakemochi === '1',
+                    Mujin: item.Mujin === true || item.Mujin === 1 || item.Mujin === '1'
+                }));
+            } else {
+                console.warn('t_worktimecode データ取得失敗または空:', error);
+            }
+        }
+
+        // 2. t_workcode (大枠職種) を取得
+        const workCodeTable = await findTableName(['t_workcode', 'T_WorkCode', 'workcode', 't workcode']);
+        console.log('t_workcode テーブル名:', workCodeTable);
+        let generalWorkItems = [];
+        if (workCodeTable) {
+            const { data, error } = await supabase.from(workCodeTable).select('*');
+            if (!error && data) {
+                console.log('t_workcode データ取得:', data.length, '件');
+                generalWorkItems = data.map(item => ({
+                    WorkCode: (item.WorkCode || item.workcode || '').toString().trim(),
+                    WorkName: (item.WorkName || item.workname || '').toString().trim(),
+                    WorkGroup: (item.WorkGroup || item.workgroup || '基本職種').toString().trim(),
+                    Kakemochi: item.Kakemochi === true || item.Kakemochi === 1 || item.Kakemochi === '1',
+                    Mujin: item.Mujin === true || item.Mujin === 1 || item.Mujin === '1'
+                }));
+            } else {
+                console.warn('t_workcode データ取得失敗または空:', error);
+            }
+        }
+
+        // 3. マージ（重複排除）
+        const allItems = [...detailWorkItems, ...generalWorkItems];
+        const seen = new Set();
+        window.workCodeMaster = allItems.filter(item => {
+            if (!item.WorkName) return false;
+            const key = item.WorkCode + '|' + item.WorkName;
+            if (seen.has(key)) return false;
+            seen.add(key);
+            return true;
+        });
+
+        // グループと名称でソート
+        window.workCodeMaster.sort((a, b) => {
+            if (a.WorkGroup !== b.WorkGroup) return a.WorkGroup.localeCompare(b.WorkGroup, 'ja');
+            return a.WorkName.localeCompare(b.WorkName, 'ja');
+        });
+
+        if (window.workCodeMaster.length === 0) {
+            console.warn('作業コードマスタが空です。デモデータを使用します。');
+            window.workCodeMaster = [
+                { WorkCode: 'ELA', WorkName: '普通旋盤', WorkGroup: '加工', Kakemochi: false, Mujin: false },
+                { WorkCode: 'CLNG', WorkName: '清掃', WorkGroup: 'その他', Kakemochi: false, Mujin: false },
+                { WorkCode: 'MEET', WorkName: '社内会議', WorkGroup: 'その他', Kakemochi: false, Mujin: false },
+                { WorkCode: 'ASSM1', WorkName: '組立', WorkGroup: '組立', Kakemochi: false, Mujin: false }
+            ];
+        }
+
+        console.log('作業コードマスタを最終的に読み込みました:', window.workCodeMaster.length, '件');
+    } catch (e) {
+        console.error('loadWorkNamesForWorkTicket error:', e);
+    }
+}
+
+// 部署選択に応じて職種をフィルタリング
+function setupDepartmentJobTypeFilter() {
+    const departmentRadios = document.querySelectorAll('input[name="department"]');
+    departmentRadios.forEach(radio => {
+        radio.addEventListener('change', async () => {
+            await updateJobTypesByDepartment(radio.value);
+        });
+    });
+    
+    // 初期状態でも更新
+    const selectedDept = document.querySelector('input[name="department"]:checked');
+    if (selectedDept) {
+        updateJobTypesByDepartment(selectedDept.value);
+    }
+}
+
+// 部署に応じて職種を更新
+async function updateJobTypesByDepartment(department) {
+    try {
+        const supabase = getSupabaseClient();
+        if (!supabase) {
+            return;
+        }
+        
+        // t_workdepartmentから部署に対応する作業コードを取得
+        const { data: deptData, error: deptError } = await supabase
+            .from('t_workdepartment')
+            .select('selectworkcode')
+            .eq('department', department);
+        
+        if (deptError || !deptData || deptData.length === 0) {
+            // 部署マスタにデータがない場合は、t_workcodeから全データを使用
+            await loadAllJobTypes();
+            return;
+        }
+        
+        // 部署に対応する作業コードを取得
+        const allowedWorkCodes = deptData.map(item => item.selectworkcode).filter(Boolean);
+        
+        // t_workcodeから該当する作業コードを取得
+        const { data: workcodeData, error: workcodeError } = await supabase
+            .from('t_workcode')
+            .select('workcode, workname')
+            .in('workcode', allowedWorkCodes)
+            .order('workcode');
+        
+        if (workcodeError || !workcodeData) {
+            await loadAllJobTypes();
+            return;
+        }
+        
+        // 職種1の選択肢を更新
+        const jobType1Select = document.getElementById('work-ticket-job-type-1');
+        if (jobType1Select) {
+            const currentValue = jobType1Select.value;
+            jobType1Select.innerHTML = '<option value="">選択</option>';
+            
+            const jobTypes = new Set();
+            workcodeData.forEach(item => {
+                if (item.workcode) {
+                    const jobType = item.workcode.substring(0, 4).toUpperCase();
+                    if (jobType && jobType.length >= 2) {
+                        jobTypes.add(jobType);
+                    }
+                }
+            });
+            
+            Array.from(jobTypes).sort().forEach(jobType => {
+                const option = document.createElement('option');
+                option.value = jobType;
+                option.textContent = jobType;
+                if (jobType === currentValue) {
+                    option.selected = true;
+                }
+                jobType1Select.appendChild(option);
+            });
+            
+            // 職種1が選択されていれば職種2も自動更新
+            if (jobType1Select.value) {
+                await updateJobType2Options();
+            }
+        }
+        
+    } catch (err) {
+        console.warn('部署に応じた職種更新中にエラーが発生しました:', err);
+    }
+}
+
+// 全職種を読み込む（部署マスタにデータがない場合）
+async function loadAllJobTypes() {
+    try {
+        const supabase = getSupabaseClient();
+        if (!supabase) {
+            return;
+        }
+        
+        const { data: workcodeData, error } = await supabase
+            .from('t_workcode')
+            .select('workcode, workname')
+            .order('workcode');
+        
+        if (error || !workcodeData) {
+            return;
+        }
+        
+        const jobType1Select = document.getElementById('work-ticket-job-type-1');
+        if (jobType1Select) {
+            const currentValue = jobType1Select.value;
+            jobType1Select.innerHTML = '<option value="">選択</option>';
+            
+            const jobTypes = new Set();
+            workcodeData.forEach(item => {
+                if (item.workcode) {
+                    const jobType = item.workcode.substring(0, 4).toUpperCase();
+                    if (jobType && jobType.length >= 2) {
+                        jobTypes.add(jobType);
+                    }
+                }
+            });
+            
+            Array.from(jobTypes).sort().forEach(jobType => {
+                const option = document.createElement('option');
+                option.value = jobType;
+                option.textContent = jobType;
+                if (jobType === currentValue) {
+                    option.selected = true;
+                }
                 jobType1Select.appendChild(option);
             });
         }
         
-        // 職種2の選択肢を設定（同じデータを使用）
-        const jobType2Select = document.getElementById('work-ticket-job-type-2');
-        if (jobType2Select && data) {
-            data.forEach(job => {
-                const option = document.createElement('option');
-                option.value = job.職種コード || job.職種名 || job.id;
-                option.textContent = job.職種名 || job.名称 || job.name;
-                jobType2Select.appendChild(option);
+        await updateJobType2Options();
+    } catch (err) {
+        console.warn('全職種読み込み中にエラーが発生しました:', err);
+    }
+}
+
+// 職種2の選択肢を設定（職種1の変更を監視）
+function setupJobType2Options() {
+    const jobType1Select = document.getElementById('work-ticket-job-type-1');
+    if (jobType1Select) {
+        // 既存のイベントリスナーを削除（重複を防ぐ）
+        const newSelect = jobType1Select.cloneNode(true);
+        jobType1Select.parentNode.replaceChild(newSelect, jobType1Select);
+        
+        // 新しいイベントリスナーを追加
+        const updatedSelect = document.getElementById('work-ticket-job-type-1');
+        if (updatedSelect) {
+            updatedSelect.addEventListener('change', async (event) => {
+                console.log('職種1が変更されました:', event.target.value);
+                await updateJobType2Options();
+            });
+            
+            // inputイベントも監視（一部のブラウザでchangeが発火しない場合に備える）
+            updatedSelect.addEventListener('input', async (event) => {
+                console.log('職種1が入力されました:', event.target.value);
+                await updateJobType2Options();
             });
         }
+    }
+}
+
+// 職種1の選択に応じて職種2の選択肢を更新（t_workdepartmentのWorkUnitから取得）
+async function updateJobType2Options() {
+    try {
+        const jobType1Select = document.getElementById('work-ticket-job-type-1');
+        const jobType2Select = document.getElementById('work-ticket-job-type-2');
+        
+        if (!jobType1Select || !jobType2Select) {
+            return;
+        }
+        
+        const selectedJobType1 = jobType1Select.value;
+        console.log('選択された職種1:', selectedJobType1);
+        
+        if (!selectedJobType1) {
+            console.log('職種1が選択されていないため、職種2をクリアします');
+            jobType2Select.innerHTML = '<option value="">選択</option>';
+            return;
+        }
+        
+        console.log('職種2の更新を開始します...');
+        const supabase = getSupabaseClient();
+        if (!supabase) {
+            return;
+        }
+        
+        // まず全カラムを取得してWorkUnitカラム名を確認
+        const { data: sampleData, error: sampleError } = await supabase
+            .from('t_workdepartment')
+            .select('*')
+            .limit(1);
+        
+        if (sampleError) {
+            console.error('t_workdepartmentテーブルへのアクセスエラー:', sampleError);
+            jobType2Select.innerHTML = '<option value="">選択</option>';
+            return;
+        }
+        
+        // WorkUnitカラム名のバリエーションを試す
+        let workUnitColumn = null;
+        const columnVariations = ['workunit', 'WorkUnit', 'work_unit', 'workunitcode', 'work_unit_code'];
+        
+        if (sampleData && sampleData.length > 0) {
+            const keys = Object.keys(sampleData[0]);
+            console.log('t_workdepartmentの利用可能なカラム:', keys);
+            
+            // 完全一致を試す
+            for (const colName of columnVariations) {
+                if (keys.includes(colName)) {
+                    workUnitColumn = colName;
+                    break;
+                }
+            }
+            
+            // 部分一致を試す
+            if (!workUnitColumn) {
+                workUnitColumn = keys.find(key => 
+                    key.toLowerCase().includes('workunit') || 
+                    key.toLowerCase().includes('unit')
+                );
+            }
+        }
+        
+        if (!workUnitColumn) {
+            console.error('WorkUnitカラムが見つかりません');
+            jobType2Select.innerHTML = '<option value="">選択</option>';
+            return;
+        }
+        
+        console.log('使用するWorkUnitカラム名:', workUnitColumn);
+        
+        // WorkDepaカラム名も確認
+        let workDepaColumn = null;
+        const depaColumnVariations = ['workdepa', 'WorkDepa', 'work_depa', 'workdepacode'];
+        
+        if (sampleData && sampleData.length > 0) {
+            const keys = Object.keys(sampleData[0]);
+            for (const colName of depaColumnVariations) {
+                if (keys.includes(colName)) {
+                    workDepaColumn = colName;
+                    break;
+                }
+            }
+            if (!workDepaColumn) {
+                workDepaColumn = keys.find(key => 
+                    key.toLowerCase().includes('workdepa') || 
+                    key.toLowerCase().includes('depa')
+                );
+            }
+        }
+        
+        if (!workDepaColumn) {
+            console.error('WorkDepaカラムが見つかりません');
+            jobType2Select.innerHTML = '<option value="">選択</option>';
+            return;
+        }
+        
+        // 選択された職種1（WorkDepa）に対応するWorkUnitを取得
+        const { data: workdeptData, error } = await supabase
+            .from('t_workdepartment')
+            .select(`${workDepaColumn}, ${workUnitColumn}`)
+            .eq(workDepaColumn, selectedJobType1)
+            .order(workUnitColumn);
+        
+        if (error) {
+            console.error('WorkUnitデータの取得エラー:', error);
+            jobType2Select.innerHTML = '<option value="">選択</option>';
+            return;
+        }
+        
+        if (!workdeptData || workdeptData.length === 0) {
+            console.warn('選択された職種1に対応するWorkUnitデータがありません');
+            jobType2Select.innerHTML = '<option value="">選択</option>';
+            return;
+        }
+        
+        console.log('取得したWorkUnitデータ:', workdeptData);
+        
+        const currentValue = jobType2Select.value;
+        jobType2Select.innerHTML = '<option value="">選択</option>';
+        
+        // 重複を避けてWorkUnitを取得
+        const workUnits = new Set();
+        workdeptData.forEach(item => {
+            const workUnit = item[workUnitColumn];
+            if (workUnit && workUnit !== null && workUnit !== '') {
+                workUnits.add(String(workUnit));
+            }
+        });
+        
+        console.log('抽出したWorkUnit:', Array.from(workUnits));
+        
+        // WorkUnitをソートして追加
+        if (workUnits.size === 0) {
+            console.warn('職種1に対応するWorkUnitが見つかりませんでした');
+            jobType2Select.innerHTML = '<option value="">選択</option>';
+        } else {
+            Array.from(workUnits).sort().forEach(workUnit => {
+                const option = document.createElement('option');
+                option.value = workUnit;
+                option.textContent = workUnit;
+                if (workUnit === currentValue) {
+                    option.selected = true;
+                }
+                jobType2Select.appendChild(option);
+            });
+            console.log('職種2の選択肢を更新しました。件数:', workUnits.size);
+        }
+        
     } catch (err) {
-        console.warn('職種データの読み込み中にエラーが発生しました:', err);
-        setDefaultJobTypes();
+        console.error('職種2の選択肢更新中にエラーが発生しました:', err);
     }
 }
 
 // 作業者の選択肢を読み込む
 async function loadWorkersForWorkTicket() {
     try {
-        if (!getSupabaseClient()) {
+        const supabase = getSupabaseClient();
+        if (!supabase) {
             console.warn('Supabaseクライアントが初期化されていません');
             setDefaultWorkers();
             return;
         }
         
         const workerSelect = document.getElementById('work-ticket-worker');
-        if (!workerSelect) {
-            console.warn('作業者セレクトボックスが見つかりません');
-            return;
-        }
+        if (!workerSelect) return;
         
-        // まず読み込み中を表示
         workerSelect.innerHTML = '<option value="">読み込み中...</option>';
         
-        // T_StaffCodeテーブルから従業員データを取得（すべてのカラムを取得して確認）
-        // 複数のテーブル名のパターンを試す
-        let data = null;
-        let error = null;
-        const tableNames = ['T_StaffCode', 't_staffcode', 't_staff_code', 'StaffCode'];
-        
-        for (const tableName of tableNames) {
-            const result = await getSupabaseClient()
-                .from(tableName)
-                .select('*')
-                .limit(10); // まず10件だけ取得してテスト
-            
-            if (!result.error && result.data && result.data.length > 0) {
-                console.log(`テーブル "${tableName}" からデータを取得しました`);
-                // 全件取得
-                const fullResult = await getSupabaseClient()
-                    .from(tableName)
-                    .select('*');
-                if (!fullResult.error) {
-                    data = fullResult.data;
-                    error = null;
-                } else {
-                    error = fullResult.error;
-                }
-                break;
-            } else {
-                console.log(`テーブル "${tableName}" の取得に失敗:`, result.error);
-                if (result.error) {
-                    error = result.error;
-                }
+        // 社員管理（t_staffcode）から作業者を取得
+        const staffTable = await findTableName(['t_staffcode', 'T_StaffCode', 'staffcode', 't staffcode']);
+        if (!staffTable) {
+            console.error('t_staffcodeテーブルが見つかりません。t_computerdeviceを試行します。');
+            // フォールバック
+            const computerDeviceTable = await findTableName(['t_computerdevice', 'T_ComputerDevice', 'computerdevice', 't computerdevice']);
+            if (!computerDeviceTable) {
+                setDefaultWorkers();
+                return;
             }
+            const { data } = await supabase.from(computerDeviceTable).select('*');
+            populateWorkerSelect(data, workerSelect);
+            return;
         }
+
+        // t_staffcode から全件取得
+        const { data, error } = await supabase
+            .from(staffTable)
+            .select('*');
         
         if (error || !data) {
-            console.error('作業者データの読み込みエラー:', error);
-            console.error('エラー詳細:', error.message, error.details, error.hint);
-            // エラーが発生した場合は、デフォルトの選択肢を設定
+            console.error('社員データの読み込みエラー:', error);
             setDefaultWorkers();
             return;
         }
         
-        console.log('取得した作業者データ:', data);
-        console.log('データ件数:', data ? data.length : 0);
+        populateWorkerSelect(data, workerSelect);
         
-        if (!data || data.length === 0) {
-            console.warn('作業者データが取得できませんでした');
-            setDefaultWorkers();
-            return;
-        }
-        
-        workerSelect.innerHTML = '<option value="">選択してください</option>';
-        let addedCount = 0;
-        
-        data.forEach(worker => {
-            // カラム名のバリエーションに対応（大文字小文字の違いに対応）
-            const staffName = worker.StaffName || worker.Staffname || worker.staffName || worker.staffname || 
-                            worker['StaffName'] || worker['Staffname'] || worker['staffName'] || worker['staffname'] || '';
-            
-            console.log('処理中の作業者:', worker, '氏名:', staffName);
-            
-            if (staffName && staffName.trim() !== '' && staffName !== '-') {
-                const option = document.createElement('option');
-                option.value = staffName.trim();
-                option.textContent = staffName.trim();
-                workerSelect.appendChild(option);
-                addedCount++;
-            }
-        });
-        
-        console.log('追加された作業者数:', addedCount);
-        
-        if (addedCount === 0) {
-            console.warn('有効な作業者データが見つかりませんでした。デフォルトを表示します。');
-            setDefaultWorkers();
-        }
     } catch (err) {
         console.error('作業者データの読み込み中にエラーが発生しました:', err);
         setDefaultWorkers();
+    }
+}
+
+// 作業者プルダウンを生成する共通処理
+function populateWorkerSelect(data, workerSelect) {
+    workerSelect.innerHTML = '<option value="">選択してください</option>';
+    let addedCount = 0;
+    
+    // 重複を避けるためのセット
+    const seenCodes = new Set();
+
+    data.forEach(item => {
+        // staffcode, StaffCode, staff_code などのバリエーションをチェック
+        const staffCode = String(item.staffcode || item.StaffCode || item.staff_code || item.Staffcode || '').trim();
+        const staffName = String(item.staffname || item.StaffName || item.staff_name || item.StaffName || staffCode).trim();
+        // depacode, DepaCode, departmentcode などのバリエーションをチェック
+        const depaCode = String(item.depacode || item.DepaCode || item.departmentcode || item.DeptCode || item.Depacode || '').trim();
+        
+        if (staffCode && !seenCodes.has(staffCode)) {
+            const option = document.createElement('option');
+            option.value = staffCode;
+            option.textContent = staffName || staffCode;
+            // 部署コードを属性として保持しておく
+            option.setAttribute('data-depacode', depaCode);
+            workerSelect.appendChild(option);
+            seenCodes.add(staffCode);
+            addedCount++;
+        }
+    });
+    
+    if (addedCount === 0) {
+        setDefaultWorkers();
+    } else {
+        console.log(`作業者リストを読み込みました: ${addedCount}件`);
+    }
+}
+
+// 作業者が変更された時の処理
+async function onWorkerChange(staffCode) {
+    console.log('--- onWorkerChange 開始 --- staffCode:', staffCode);
+    if (!staffCode) return;
+
+    const workerSelect = document.getElementById('work-ticket-worker');
+    if (!workerSelect) {
+        console.error('work-ticket-worker 要素が見つかりません');
+        return;
+    }
+    
+    const selectedOption = workerSelect.options[workerSelect.selectedIndex];
+    // t_computerdevice から取得した depacode (data-depacode 属性に格納済み)
+    const depaCode = selectedOption.getAttribute('data-depacode');
+
+    console.log('t_computerdevice由来の depaCode:', depaCode);
+
+    try {
+        const supabase = getSupabaseClient();
+        if (!supabase) {
+            console.error('Supabaseクライアントが取得できません');
+            return;
+        }
+
+        const depaInput = document.getElementById('work-ticket-worker-depa');
+        const jobType1Select = document.getElementById('work-ticket-job-type-1');
+
+        // 1. まず t_staffcode から詳細情報を取得（staffcodeで検索）
+        const staffCodeTable = await findTableName(['t_staffcode', 'T_StaffCode', 'staffcode', 't staffcode']);
+        console.log('Using staff table:', staffCodeTable);
+        
+        let finalDepaCode = depaCode;
+        if (staffCodeTable) {
+            // カラム名の存在確認を兼ねて、全カラムではなく特定のカラムを指定して試行
+            // ログのエラー「column t_staffcode.staffcode does not exist」に対応
+            const { data: staffData, error: staffError } = await supabase
+                .from(staffCodeTable)
+                .select('*');
+            
+            if (staffError) {
+                console.error('t_staffcode 取得エラー:', staffError);
+            }
+
+            if (staffData && staffData.length > 0) {
+                // staffcode カラムの名前が StaffCode や staff_code の可能性があるため、
+                // 取得したデータから動的に一致するものを探す
+                const targetStaff = staffData.find(s => 
+                    String(s.staffcode || s.StaffCode || s.staff_code || '').trim() === String(staffCode).trim()
+                );
+
+                if (targetStaff) {
+                    console.log('t_staffcode から対象者を発見:', targetStaff);
+                    const sDepa = targetStaff.depacode || targetStaff.DepaCode || targetStaff.departmentcode || targetStaff.DeptCode || '';
+                    if (sDepa) {
+                        finalDepaCode = String(sDepa).trim();
+                        console.log('finalDepaCodeをt_staffcode由来に更新:', finalDepaCode);
+                    }
+                } else {
+                    console.warn('t_staffcode 内に一致する staffcode が見つかりませんでした:', staffCode);
+                }
+            }
+        }
+
+        if (finalDepaCode) {
+            // 2. t_departmentcode から部署名を取得
+            const deptCodeTable = await findTableName(['t_departmentcode', 'T_DepartmentCode', 'departmentcode', 't departmentcode']);
+            console.log('t_departmentcode テーブル名:', deptCodeTable);
+            
+            if (deptCodeTable) {
+                const cleanDepaCode = String(finalDepaCode).trim();
+                // カラム名のバリエーションに対応 (departmentname, depaname, departmentcode, depacode)
+                let { data: deptNameData } = await supabase
+                    .from(deptCodeTable)
+                    .select('*');
+
+                if (deptNameData && deptNameData.length > 0) {
+                    // JavaScript側で柔軟に検索
+                    const targetDept = deptNameData.find(d => 
+                        String(d.departmentcode || d.Departmentcode || d.depacode || d.Depacode || '').trim() === cleanDepaCode
+                    );
+
+                    if (targetDept) {
+                        const depaName = targetDept.departmentname || targetDept.DepartmentName || targetDept.depaname || targetDept.Depaname || '';
+                        if (depaInput) {
+                            depaInput.value = depaName;
+                            console.log('t_departmentcode から部署名をセット:', depaName);
+                        }
+                    } else {
+                        // 見つからない場合は数値のまま
+                        if (depaInput) depaInput.value = cleanDepaCode;
+                    }
+                } else {
+                    if (depaInput) depaInput.value = cleanDepaCode;
+                }
+            }
+
+            // 3. t_workdepartment から職種情報を取得
+            const workDeptTable = await findTableName(['t_workdepartment', 'T_WorkDepartment', 'workdepartment', 't workdepartment']);
+            console.log('t_workdepartment テーブル名:', workDeptTable);
+            
+            if (workDeptTable) {
+                const cleanDepaCode = String(finalDepaCode).trim();
+                
+                // 全件取得してJS側で柔軟にフィルタリング（カラム名不明確なため）
+                let { data: allWorkDepts, error: workDeptError } = await supabase
+                    .from(workDeptTable)
+                    .select('*');
+
+                console.log('t_workdepartment 全データ:', allWorkDepts);
+
+                if (allWorkDepts && allWorkDepts.length > 0) {
+                    // 1. 部署コードで絞り込み
+                    let filteredDepts = allWorkDepts.filter(d => {
+                        const dCode = String(d.departmentcode || d.Departmentcode || d.DeptCode || d.depacode || d.Depacode || d.department || '').trim();
+                        return dCode === cleanDepaCode;
+                    });
+
+                    // 2. 部署コードでヒットしない場合、部署名で絞り込みを試行
+                    if (filteredDepts.length === 0 && depaInput && depaInput.value) {
+                        const currentDepaName = depaInput.value.trim();
+                        filteredDepts = allWorkDepts.filter(d => {
+                            const dName = String(d.departmentname || d.DepartmentName || d.depaname || d.Depaname || d.DeptName || d.department || '').trim();
+                            return dName === currentDepaName || dName.includes(currentDepaName) || currentDepaName.includes(dName);
+                        });
+                    }
+
+                    console.log('絞り込み後の職種データ:', filteredDepts);
+
+                    // 職種プルダウンを一旦クリア
+                    if (jobType1Select) {
+                        jobType1Select.innerHTML = '<option value="">選択</option>';
+                    }
+
+                    if (filteredDepts.length > 0) {
+                        const firstDept = filteredDepts[0];
+                        
+                        // 部署名が未設定ならセット
+                        if (depaInput && (!depaInput.value || /^\d+$/.test(depaInput.value))) {
+                            const depaName = firstDept.DeptName || firstDept.departmentname || firstDept.depaname || firstDept.DepartmentName || '';
+                            if (depaName) depaInput.value = depaName;
+                        }
+                        
+                        // 職種 (workdepa) を取得
+                        const jobName = firstDept.workdepa || firstDept.WorkDepa || firstDept.work_depa || firstDept.SelectWorkCode || firstDept.selectworkcode || '';
+                        
+                        // 職種プルダウンの選択肢を更新
+                        if (jobType1Select) {
+                            jobType1Select.innerHTML = '<option value="">選択</option>';
+                            const jobTypes = new Set();
+                            filteredDepts.forEach(d => {
+                                const jt = d.workdepa || d.WorkDepa || d.work_depa || d.SelectWorkCode || d.selectworkcode;
+                                if (jt) jobTypes.add(String(jt).trim());
+                            });
+                            
+                            const jobTypesArray = Array.from(jobTypes).sort();
+                            jobTypesArray.forEach(jt => {
+                                const option = document.createElement('option');
+                                option.value = jt;
+                                option.textContent = jt;
+                                jobType1Select.appendChild(option);
+                            });
+
+                            // 初期選択
+                            if (jobName && jobTypes.has(jobName)) {
+                                jobType1Select.value = jobName;
+                            } else if (jobTypesArray.length === 1) {
+                                jobType1Select.value = jobTypesArray[0];
+                            }
+                        }
+                    } else {
+                        console.warn('該当する部署の職種が見つかりませんでした:', cleanDepaCode);
+                        // 絞り込みに失敗した場合は、全件表示に戻すか空にするか検討が必要だが、
+                        // ユーザーの要望は「絞り込み」なので、一旦空（選択のみ）にする
+                    }
+                }
+            }
+        } else {
+            console.warn('depaCode が取得できていません');
+        }
+    } catch (e) {
+        console.error('onWorkerChange error:', e);
     }
 }
 
@@ -5612,6 +6835,67 @@ function setDefaultWorkers() {
             <option value="製造管理部">製造管理部</option>
             <option value="明石製造部">明石製造部</option>
         `;
+    }
+}
+
+// 作業コードから作業名を自動取得
+async function fetchWorkNameByWorkCode(inputElement) {
+    const workCode = inputElement.value.trim();
+    if (!workCode) {
+        return;
+    }
+    
+    try {
+        const supabase = getSupabaseClient();
+        if (!supabase) {
+            console.warn('Supabaseクライアントが初期化されていません');
+            return;
+        }
+        
+        // 1. t_workcodeから作業コードに対応する作業名を取得
+        const workCodeTable = await findTableName(['t_workcode', 'T_WorkCode', 'workcode', 't workcode']);
+        let workName = '';
+        
+        if (workCodeTable) {
+            const { data, error } = await supabase
+                .from(workCodeTable)
+                .select('WorkName')
+                .eq('WorkCode', workCode)
+                .limit(1);
+            
+            if (!error && data && data.length > 0) {
+                workName = data[0].workname || data[0].WorkName || '';
+            }
+        }
+
+        // 2. 見つからない場合、t_worktimecodeから取得を試みる
+        if (!workName) {
+            const workTimeCodeTable = await findTableName(['t_worktimecode', 'T_WorkTimeCode', 'worktimecode', 't worktimecode']);
+            if (workTimeCodeTable) {
+                const { data, error } = await supabase
+                    .from(workTimeCodeTable)
+                    .select('WorkName')
+                    .eq('WorkCode', workCode)
+                    .limit(1);
+                
+                if (!error && data && data.length > 0) {
+                    workName = data[0].workname || data[0].WorkName || '';
+                }
+            }
+        }
+        
+        if (workName) {
+            // 同じ行の作業名入力欄を更新
+            const row = inputElement.closest('tr');
+            if (row) {
+                const workNameInput = row.querySelector('.work-name-input');
+                if (workNameInput) {
+                    workNameInput.value = workName;
+                }
+            }
+        }
+    } catch (err) {
+        console.warn('作業名取得中にエラーが発生しました:', err);
     }
 }
 
@@ -5851,18 +7135,78 @@ function changeWorkTicketDate(days) {
 }
 
 // 作業票フォームをクリア
+// 入力フォームをクリア
 function clearWorkTicketForm() {
-    const form = document.querySelector('.work-ticket-form');
-    if (form) {
-        const inputs = form.querySelectorAll('input[type="text"], input[type="date"], select, textarea');
-        inputs.forEach(input => {
-            if (input.type === 'checkbox' || input.type === 'radio') {
-                input.checked = false;
-            } else {
-                input.value = '';
-            }
-        });
+    if (!confirm('入力内容をすべてクリアしてもよろしいですか？')) {
+        return;
     }
+
+    // 基本情報のクリア
+    const basicInputs = [
+        'work-ticket-construct-no',
+        'work-ticket-drawing-no',
+        'work-ticket-part-no',
+        'work-ticket-project-name',
+        'work-ticket-order-from',
+        'work-ticket-delivery-to',
+        'work-ticket-worker-depa',
+        'work-ticket-worker-job'
+    ];
+    
+    basicInputs.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.value = '';
+    });
+
+    // セレクトボックスのクリア
+    const selects = [
+        'work-ticket-worker',
+        'work-ticket-job-type-1',
+        'work-ticket-machine-type',
+        'work-ticket-unit-select'
+    ];
+    
+    selects.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.selectedIndex = 0;
+    });
+
+    // チェックボックスのクリア
+    const checkboxes = [
+        'work-ticket-no-drawing',
+        'work-ticket-sv-check',
+        'work-ticket-mt-check',
+        'work-ticket-register-with-unit'
+    ];
+    
+    checkboxes.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.checked = false;
+    });
+
+    // 作業リストのクリア
+    const list = document.getElementById('work-ticket-items-list');
+    if (list) {
+        list.innerHTML = `
+            <tr>
+                <td colspan="13" style="text-align: center; padding: 40px; color: var(--text-secondary);">
+                    <div style="display: flex; flex-direction: column; align-items: center; gap: 12px;">
+                        <i class="fas fa-clipboard-list" style="font-size: 48px; opacity: 0.2; color: var(--primary);"></i>
+                        <div>
+                            <span style="font-size: 13px; font-weight: 600; color: var(--text-secondary);">作業項目がありません</span>
+                            <div style="font-size: 11px; color: var(--text-tertiary); margin-top: 4px;">上記のフォームから作業を追加してください</div>
+                        </div>
+                    </div>
+                </td>
+            </tr>
+        `;
+    }
+
+    // 合計時間のクリア
+    const totalEl = document.getElementById('work-ticket-total');
+    if (totalEl) totalEl.value = '0';
+
+    showMessage('入力をクリアしました');
 }
 
 // 作業項目を追加
@@ -5880,24 +7224,75 @@ function addWorkTicketItem() {
     const drawingNo = document.getElementById('work-ticket-drawing-no')?.value || '';
     const partNo = document.getElementById('work-ticket-part-no')?.value || '';
     const jobType1 = document.getElementById('work-ticket-job-type-1')?.value || '';
-    const jobType2 = document.getElementById('work-ticket-job-type-2')?.value || '';
-    const drawingJob = drawingNo + (jobType1 ? '/' + jobType1 : '') + (jobType2 ? '/' + jobType2 : '');
+    
+    // SV/MTチェックボックスの状態を取得
+    const isSV = document.getElementById('work-ticket-sv-check')?.checked;
+    const isMT = document.getElementById('work-ticket-mt-check')?.checked;
+    let svMt = '';
+    if (isSV && isMT) svMt = 'SV/MT';
+    else if (isSV) svMt = 'SV';
+    else if (isMT) svMt = 'MT';
+    
+    const drawingJob = drawingNo + (jobType1 ? '/' + jobType1 : '') + (svMt ? '(' + svMt + ')' : '');
     
     const row = document.createElement('tr');
+    
+    // 作業内容のセレクトボックスを生成
+    let workNameOptions = '<option value="">選択してください</option>';
+    if (window.workCodeMaster) {
+        let currentGroup = '';
+        window.workCodeMaster.forEach(item => {
+            const group = (item.WorkGroup || 'その他').trim();
+            if (group !== currentGroup) {
+                if (currentGroup !== '') workNameOptions += '</optgroup>';
+                workNameOptions += `<optgroup label="${group}">`;
+                currentGroup = group;
+            }
+            workNameOptions += `<option value="${item.WorkName.trim()}" data-code="${item.WorkCode.trim()}" data-kakemochi="${item.Kakemochi}" data-mujin="${item.Mujin}">${item.WorkName.trim()}</option>`;
+        });
+        if (currentGroup !== '') workNameOptions += '</optgroup>';
+    }
+    workNameOptions += '<option value="OTHER" data-code="">その他（直接入力）</option>';
+
     row.innerHTML = `
-        <td><button type="button" class="btn-danger btn-small" onclick="removeWorkTicketItem(this)" style="padding: 6px 12px; font-size: 12px;"><i class="fas fa-trash"></i></button></td>
-        <td><input type="text" name="items[][construct_no]" class="form-input" value="${constructNo}" style="padding: 8px; font-size: 13px;"></td>
-        <td><input type="text" name="items[][drawing_job]" class="form-input" value="${drawingJob}" style="padding: 8px; font-size: 13px;"></td>
-        <td><input type="text" name="items[][part_no]" class="form-input" value="${partNo}" style="padding: 8px; font-size: 13px;"></td>
-        <td><input type="text" name="items[][work_code]" class="form-input" style="padding: 8px; font-size: 13px;"></td>
-        <td style="text-align: center;"><input type="checkbox" name="items[][holding]"></td>
-        <td style="text-align: center;"><input type="checkbox" name="items[][unmanned]"></td>
-        <td style="text-align: center;"><input type="checkbox" name="items[][urgent]"></td>
-        <td style="text-align: center;"><input type="checkbox" name="items[][separate]"></td>
-        <td style="text-align: center;"><input type="checkbox" name="items[][guidance]"></td>
-        <td><input type="text" name="items[][work_name]" class="form-input" style="padding: 8px; font-size: 13px;"></td>
-        <td><input type="number" name="items[][quantity]" class="form-input" style="padding: 8px; font-size: 13px;" min="0" value="1"></td>
-        <td><input type="number" name="items[][work_time]" class="form-input" style="padding: 8px; font-size: 13px;" min="0" step="0.1" onchange="updateWorkTicketTotal()"></td>
+        <td><button type="button" class="btn-danger btn-small" onclick="removeWorkTicketItem(this)" style="padding: 4px 8px; font-size: 11px;"><i class="fas fa-trash"></i></button></td>
+        <td style="width: 50px;"><input type="text" name="items[][construct_no]" class="form-input" value="${constructNo}" style="padding: 4px; font-size: 12px; width: 100%; border: none; background: transparent; text-align: center;" readonly></td>
+        <td><input type="text" name="items[][drawing_job]" class="form-input" value="${drawingJob}" style="padding: 4px; font-size: 12px; width: 100%; border: none; background: transparent;" readonly></td>
+        <td style="width: 40px;"><input type="text" name="items[][part_no]" class="form-input" value="${partNo}" style="padding: 4px; font-size: 12px; width: 100%; border: none; background: transparent; text-align: center;" readonly></td>
+        <td style="position: relative; overflow: visible;">
+            <div class="work-name-container" style="position: relative; width: 100%;">
+                <input type="text" class="form-input work-name-search-input" placeholder="作業内容を入力/検索..." style="padding: 4px 8px; font-size: 12px; width: 100%; box-sizing: border-box;" oninput="filterWorkNames(this)" onfocus="showWorkNameDropdown(this)" onblur="hideWorkNameDropdown(this)">
+                <input type="hidden" name="items[][work_name]" class="work-name-hidden-input">
+                <div class="work-name-dropdown" style="display: none; position: absolute; top: 100%; left: 0; width: 100%; max-height: 250px; overflow-y: auto; background: white; border: 1px solid #4A90E2; border-radius: 4px; z-index: 9999; box-shadow: 0 8px 16px rgba(0,0,0,0.2);">
+                    ${window.workCodeMaster ? window.workCodeMaster.map(item => `
+                        <div class="work-name-option" 
+                             style="padding: 8px 12px; font-size: 13px; cursor: pointer; border-bottom: 1px solid #eee; color: #333;" 
+                             onmousedown="selectWorkName(this, '${item.WorkName.replace(/'/g, "\\'")}', '${item.WorkCode}', ${item.Kakemochi}, ${item.Mujin})"
+                             onmouseover="this.style.background='#e3f2fd'" 
+                             onmouseout="this.style.background='white'">
+                            <div style="font-weight: 700; color: #1a73e8;">${item.WorkName}</div>
+                            <div style="font-size: 11px; color: #666; display: flex; justify-content: space-between;">
+                                <span>${item.WorkGroup || ''}</span>
+                                <span style="font-family: monospace; background: #f1f3f4; padding: 0 4px; border-radius: 2px;">${item.WorkCode}</span>
+                            </div>
+                        </div>
+                    `).join('') : ''}
+                    <div class="work-name-option" 
+                         style="padding: 8px 12px; font-size: 13px; cursor: pointer; background: #fffde7; border-top: 2px solid #ffd54f;" 
+                         onmousedown="selectWorkName(this, 'OTHER', '', false, false)">
+                        <div style="font-weight: 700; color: #f57f17;">その他（直接入力）</div>
+                    </div>
+                </div>
+            </div>
+        </td>
+        <td style="text-align: center; width: 35px;"><input type="checkbox" name="items[][holding]" class="kakemochi-check" style="width: 18px; height: 18px; cursor: pointer;"></td>
+        <td style="text-align: center; width: 35px;"><input type="checkbox" name="items[][unmanned]" class="mujin-check" style="width: 18px; height: 18px; cursor: pointer;"></td>
+        <td style="text-align: center; width: 35px;"><input type="checkbox" name="items[][urgent]" style="width: 18px; height: 18px; cursor: pointer;"></td>
+        <td style="text-align: center; width: 35px;"><input type="checkbox" name="items[][separate]" style="width: 18px; height: 18px; cursor: pointer;"></td>
+        <td style="text-align: center; width: 35px;"><input type="checkbox" name="items[][guidance]" style="width: 18px; height: 18px; cursor: pointer;"></td>
+        <td style="width: 60px;"><input type="text" name="items[][work_code]" class="form-input work-code-input" style="padding: 4px; font-size: 12px; font-family: monospace; width: 100%; border: none; background: rgba(0,0,0,0.05); text-align: center;" readonly></td>
+        <td style="width: 50px;"><input type="number" name="items[][quantity]" class="form-input" style="padding: 4px; font-size: 12px; width: 100%; text-align: right;" min="0" value="1"></td>
+        <td style="width: 60px;"><input type="number" name="items[][work_time]" class="form-input" style="padding: 4px; font-size: 14px; width: 100%; text-align: right; font-weight: 700; color: var(--primary);" min="0" step="0.25" onchange="updateWorkTicketTotal()"></td>
     `;
     list.appendChild(row);
     
@@ -5928,11 +7323,37 @@ function removeWorkTicketItem(button) {
     }
 }
 
+// 作業内容選択時の自動入力
+function onWorkNameChange(select) {
+    const row = select.closest('tr');
+    const workCodeInput = row.querySelector('.work-code-input');
+    const kakemochiCheck = row.querySelector('.kakemochi-check');
+    const mujinCheck = row.querySelector('.mujin-check');
+    const selectedOption = select.options[select.selectedIndex];
+    
+    const workCode = selectedOption.getAttribute('data-code');
+    const isKakemochi = selectedOption.getAttribute('data-kakemochi') === 'true';
+    const isMujin = selectedOption.getAttribute('data-mujin') === 'true';
+    
+    if (select.value === 'OTHER') {
+        workCodeInput.value = '';
+        workCodeInput.readOnly = false;
+        workCodeInput.focus();
+    } else {
+        workCodeInput.value = workCode || '';
+        workCodeInput.readOnly = true;
+        
+        // フラグの自動セット
+        if (kakemochiCheck) kakemochiCheck.checked = isKakemochi;
+        if (mujinCheck) mujinCheck.checked = isMujin;
+    }
+}
+
 // 作業票の合計を更新
 function updateWorkTicketTotal() {
     const list = document.getElementById('work-ticket-items-list');
-    const totalInput = document.getElementById('work-ticket-total');
-    if (!list || !totalInput) return;
+    const totalInputs = document.querySelectorAll('[id="work-ticket-total"]');
+    if (!list || totalInputs.length === 0) return;
     
     let total = 0;
     const rows = list.querySelectorAll('tr');
@@ -5943,103 +7364,500 @@ function updateWorkTicketTotal() {
         }
     });
     
-    totalInput.value = total.toFixed(1);
+    const totalVal = Math.round(total * 100) / 100;
+    totalInputs.forEach(input => {
+        input.value = totalVal.toFixed(2);
+        
+        // 労働時間との乖離チェック
+        if (totalVal === 7.75) {
+            input.style.backgroundColor = '#f0fdf4'; // 緑
+            input.style.borderColor = '#22c55e';
+            input.style.color = '#166534';
+        } else if (totalVal > 0) {
+            input.style.backgroundColor = '#fff7ed'; // オレンジ
+            input.style.borderColor = '#f97316';
+            input.style.color = '#9a3412';
+        } else {
+            input.style.backgroundColor = 'white';
+            input.style.borderColor = 'var(--primary)';
+            input.style.color = 'var(--primary)';
+        }
+    });
 }
 
+// 作業内容のあいまい検索・ドロップダウン制御
+function showWorkNameDropdown(input) {
+    const dropdown = input.parentElement.querySelector('.work-name-dropdown');
+    if (dropdown) dropdown.style.display = 'block';
+}
+
+function hideWorkNameDropdown(input) {
+    const dropdown = input.parentElement.querySelector('.work-name-dropdown');
+    // mousedownイベントが先に走るように少し遅延させる
+    if (dropdown) setTimeout(() => { dropdown.style.display = 'none'; }, 200);
+}
+
+function filterWorkNames(input) {
+    const filter = input.value.toLowerCase();
+    const dropdown = input.parentElement.querySelector('.work-name-dropdown');
+    const options = dropdown.querySelectorAll('.work-name-option');
+    
+    options.forEach(option => {
+        const text = option.textContent.toLowerCase();
+        if (text.includes(filter)) {
+            option.style.display = 'block';
+        } else {
+            option.style.display = 'none';
+        }
+    });
+}
+
+function selectWorkName(option, name, code, kakemochi, mujin) {
+    const container = option.closest('.work-name-container');
+    const searchInput = container.querySelector('.work-name-search-input');
+    const hiddenInput = container.querySelector('.work-name-hidden-input');
+    const row = container.closest('tr');
+    const workCodeInput = row.querySelector('.work-code-input');
+    const kakemochiCheck = row.querySelector('.kakemochi-check');
+    const mujinCheck = row.querySelector('.mujin-check');
+
+    if (name === 'OTHER') {
+        searchInput.value = '';
+        searchInput.placeholder = '直接入力してください...';
+        hiddenInput.value = 'OTHER';
+        workCodeInput.value = '';
+        workCodeInput.readOnly = false;
+        workCodeInput.focus();
+        if (kakemochiCheck) kakemochiCheck.checked = false;
+        if (mujinCheck) mujinCheck.checked = false;
+    } else {
+        searchInput.value = name;
+        hiddenInput.value = name;
+        workCodeInput.value = code || '';
+        workCodeInput.readOnly = true;
+        if (kakemochiCheck) kakemochiCheck.checked = !!kakemochi;
+        if (mujinCheck) mujinCheck.checked = !!mujin;
+    }
+    
+    const dropdown = container.querySelector('.work-name-dropdown');
+    if (dropdown) dropdown.style.display = 'none';
+}
+
+// 加工進捗ページの初期化
+async function initializeProcessingProgressPage() {
+    console.log('initializeProcessingProgressPage 開始');
+    try {
+        // フィルターの選択肢をロード
+        await loadPPFilterOptions();
+        
+        // 検索ボタンのイベントリスナー（HTMLに直接書いたので不要だが念のため）
+        console.log('加工進捗ページの初期化完了');
+    } catch (e) {
+        console.error('initializeProcessingProgressPage error:', e);
+    }
+}
+
+// 加工進捗フィルターの選択肢をロード
+async function loadPPFilterOptions() {
+    try {
+        const supabase = getSupabaseClient();
+        if (!supabase) return;
+
+        // 機械コードの取得
+        const machineTable = await findTableName(['t_machinecode', 'T_MachineCode', 'machinecode']);
+        if (machineTable) {
+            const { data } = await supabase.from(machineTable).select('MachineCode, MachineName').order('MachineCode');
+            const select = document.getElementById('pp-filter-machine');
+            if (select && data) {
+                select.innerHTML = '<option value="">すべて</option>';
+                data.forEach(m => {
+                    const option = document.createElement('option');
+                    option.value = m.MachineCode || m.machinecode;
+                    option.textContent = `${m.MachineCode || m.machinecode} : ${m.MachineName || m.machinename || ''}`;
+                    select.appendChild(option);
+                });
+            }
+        }
+
+        // ユニットコードの取得
+        const unitTable = await findTableName(['t_unitcode', 'T_UnitCode', 'unitcode']);
+        if (unitTable) {
+            const { data } = await supabase.from(unitTable).select('UnitCode, UnitName').order('UnitCode');
+            const select = document.getElementById('pp-filter-unit');
+            if (select && data) {
+                select.innerHTML = '<option value="">すべて</option>';
+                data.forEach(u => {
+                    const option = document.createElement('option');
+                    option.value = u.UnitCode || u.unitcode;
+                    option.textContent = `${u.UnitCode || u.unitcode} : ${u.UnitName || u.unitname || ''}`;
+                    select.appendChild(option);
+                });
+            }
+        }
+    } catch (e) {
+        console.warn('loadPPFilterOptions error:', e);
+    }
+}
+
+// 加工進捗の検索
+async function searchProcessingProgress() {
+    console.log('searchProcessingProgress 開始');
+    const tbody = document.getElementById('pp-main-table-body');
+    if (!tbody) return;
+
+    tbody.innerHTML = '<tr><td colspan="21" style="text-align: center; padding: 40px;"><i class="fas fa-spinner fa-spin"></i> 検索中...</td></tr>';
+
+    try {
+        const supabase = getSupabaseClient();
+        if (!supabase) return;
+
+        const constructNo = document.getElementById('pp-filter-construct-no').value.trim();
+        const machine = document.getElementById('pp-filter-machine').value;
+        const unit = document.getElementById('pp-filter-unit').value;
+        const drawingNo = document.getElementById('pp-filter-drawing-no').value.trim();
+        const partNo = document.getElementById('pp-filter-part-no').value.trim();
+        const orderStart = document.getElementById('pp-filter-order-start').value;
+        const orderEnd = document.getElementById('pp-filter-order-end').value;
+        const status = document.querySelector('input[name="pp-status"]:checked').value;
+
+        // t_zumendata_manufct (製作図面データ) を主テーブルとして検索
+        const mainTable = await findTableName(['t_zumendata_manufct', 'T_ZumenData_Manufct', 'zumendata_manufct']);
+        if (!mainTable) {
+            tbody.innerHTML = '<tr><td colspan="21" style="text-align: center; padding: 20px; color: #ef4444;">テーブルが見つかりません</td></tr>';
+            return;
+        }
+
+        let query = supabase.from(mainTable).select('*');
+
+        if (constructNo) query = query.ilike('constructno', `%${constructNo}%`);
+        if (machine) query = query.eq('machinecode', machine);
+        if (unit) query = query.eq('unitcode', unit);
+        if (drawingNo) query = query.ilike('drawingno', `%${drawingNo}%`);
+        if (partNo) query = query.ilike('partno', `%${partNo}%`);
+        if (orderStart) query = query.gte('registerdate', orderStart);
+        if (orderEnd) query = query.lte('registerdate', orderEnd);
+
+        const { data, error } = await query.limit(100);
+
+        if (error) throw error;
+
+        if (!data || data.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="21" style="text-align: center; padding: 40px; color: #94a3b8;">該当するデータが見つかりませんでした</td></tr>';
+            return;
+        }
+
+        tbody.innerHTML = '';
+        data.forEach((row, index) => {
+            const tr = document.createElement('tr');
+            tr.style.cursor = 'pointer';
+            tr.onclick = () => selectPPRow(tr, row);
+            
+            // 状況に応じた背景色（仮のロジック）
+            let bgColor = '';
+            if (row.status === 'completed') bgColor = '#f0f9ff';
+            else if (row.material_status === 'pending') bgColor = '#fee2e2';
+            
+            tr.style.background = bgColor;
+
+            tr.innerHTML = `
+                <td style="text-align: center;"><input type="checkbox" value="${index}"></td>
+                <td>${row.constructno || ''}</td>
+                <td>${row.machinecode || ''}</td>
+                <td>${row.unitcode || ''}</td>
+                <td>${row.plan || ''}</td>
+                <td>${row.is_supplied ? '有' : ''}</td>
+                <td>${row.drawingno || ''}</td>
+                <td>${row.partno || ''}</td>
+                <td>${row.partname || ''}</td>
+                <td>${row.material || ''}</td>
+                <td>${row.quantity || ''}</td>
+                <td>${row.unit || ''}</td>
+                <td>${row.material_weight || ''}</td>
+                <td>${row.finish_weight || ''}</td>
+                <td>${row.drawing_date || ''}</td>
+                <td>${row.material_info || ''}</td>
+                <td>${row.internal_info || ''}</td>
+                <td>${row.outsource_info || ''}</td>
+                <td>${row.work_time || ''}</td>
+                <td>${row.complete_date || ''}</td>
+                <td>${row.status_text || ''}</td>
+            `;
+            tbody.appendChild(tr);
+        });
+
+    } catch (e) {
+        console.error('searchProcessingProgress error:', e);
+        tbody.innerHTML = `<tr><td colspan="21" style="text-align: center; padding: 20px; color: #ef4444;">エラーが発生しました: ${e.message}</td></tr>`;
+    }
+}
+
+// 行選択時の処理
+async function selectPPRow(tr, row) {
+    // 選択状態の視覚的フィードバック
+    const tbody = tr.parentElement;
+    tbody.querySelectorAll('tr').forEach(r => r.style.outline = 'none');
+    tr.style.outline = '2px solid var(--primary)';
+    tr.style.outlineOffset = '-2px';
+
+    const drawingNo = row.drawingno || row.DrawingNo;
+    const partNo = row.partno || row.PartNo;
+
+    // サブテーブルの更新
+    await loadPPSubTables(drawingNo, partNo);
+}
+
+// サブテーブル（加工作業、材料手配、外注加工）のロード
+async function loadPPSubTables(drawingNo, partNo) {
+    const workTbody = document.getElementById('pp-work-table-body');
+    const materialTbody = document.getElementById('pp-material-table-body');
+    const outsourceTbody = document.getElementById('pp-outsource-table-body');
+
+    workTbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 10px;"><i class="fas fa-spinner fa-spin"></i></td></tr>';
+    materialTbody.innerHTML = '<tr><td colspan="8" style="text-align: center; padding: 10px;"><i class="fas fa-spinner fa-spin"></i></td></tr>';
+    outsourceTbody.innerHTML = '<tr><td colspan="8" style="text-align: center; padding: 10px;"><i class="fas fa-spinner fa-spin"></i></td></tr>';
+
+    try {
+        const supabase = getSupabaseClient();
+        if (!supabase) return;
+
+        // 1. 加工作業 (t_worktime)
+        const workTable = await findTableName(['t_worktime', 'T_WorkTime', 'worktime']);
+        if (workTable) {
+            const { data } = await supabase.from(workTable)
+                .select('*')
+                .eq('drawingno', drawingNo)
+                .eq('partno', partNo);
+            
+            workTbody.innerHTML = '';
+            if (data && data.length > 0) {
+                data.forEach(w => {
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td>${w.workdate || ''}</td>
+                        <td>${w.workcode || ''}</td>
+                        <td>${w.workname || ''}</td>
+                        <td>${w.quantity || ''}</td>
+                        <td>${w.worktime || ''}</td>
+                        <td>${w.staffname || ''}</td>
+                    `;
+                    workTbody.appendChild(tr);
+                });
+            } else {
+                workTbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 10px; color: #94a3b8;">データなし</td></tr>';
+            }
+        }
+
+        // 2. 材料手配 (t_purchaseparts)
+        const materialTable = await findTableName(['t_purchaseparts', 'T_PurchaseParts', 'purchaseparts']);
+        if (materialTable) {
+            const { data } = await supabase.from(materialTable)
+                .select('*')
+                .eq('drawingno', drawingNo)
+                .eq('partno', partNo);
+            
+            materialTbody.innerHTML = '';
+            if (data && data.length > 0) {
+                data.forEach(m => {
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td>${m.orderno || ''}</td>
+                        <td>${m.standard || ''}</td>
+                        <td>${m.dimension || ''}</td>
+                        <td>${m.quantity || ''}</td>
+                        <td>${m.supplier || ''}</td>
+                        <td>${m.orderdate || ''}</td>
+                        <td>${m.deliverydate || ''}</td>
+                        <td>${m.receivedate || ''}</td>
+                    `;
+                    materialTbody.appendChild(tr);
+                });
+            } else {
+                materialTbody.innerHTML = '<tr><td colspan="8" style="text-align: center; padding: 10px; color: #94a3b8;">データなし</td></tr>';
+            }
+        }
+
+        // 3. 外注加工 (t_outsource)
+        const outsourceTable = await findTableName(['t_outsource', 'T_Outsource', 'outsource']);
+        if (outsourceTable) {
+            const { data } = await supabase.from(outsourceTable)
+                .select('*')
+                .eq('drawingno', drawingNo)
+                .eq('partno', partNo);
+            
+            outsourceTbody.innerHTML = '';
+            if (data && data.length > 0) {
+                data.forEach(o => {
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td>${o.orderno || ''}</td>
+                        <td>${o.workname || ''}</td>
+                        <td>${o.quantity || ''}</td>
+                        <td>${o.supplier || ''}</td>
+                        <td>${o.orderdate || ''}</td>
+                        <td>${o.deliverydate || ''}</td>
+                        <td>${o.receivedate || ''}</td>
+                        <td>${o.returndate || ''}</td>
+                    `;
+                    outsourceTbody.appendChild(tr);
+                });
+            } else {
+                outsourceTbody.innerHTML = '<tr><td colspan="8" style="text-align: center; padding: 10px; color: #94a3b8;">データなし</td></tr>';
+            }
+        }
+
+    } catch (e) {
+        console.error('loadPPSubTables error:', e);
+    }
+}
+
+// 検索クリア
+function clearPPSearch() {
+    document.getElementById('pp-filter-construct-no').value = '';
+    document.getElementById('pp-filter-machine').value = '';
+    document.getElementById('pp-filter-unit').value = '';
+    document.getElementById('pp-filter-drawing-no').value = '';
+    document.getElementById('pp-filter-part-no').value = '';
+    document.getElementById('pp-filter-order-start').value = '';
+    document.getElementById('pp-filter-order-end').value = '';
+    document.querySelector('input[name="pp-status"][value="all"]').checked = true;
+    
+    document.getElementById('pp-main-table-body').innerHTML = '<tr><td colspan="21" style="text-align: center; padding: 40px; color: #94a3b8;"><i class="fas fa-search" style="font-size: 32px; opacity: 0.2; margin-bottom: 10px; display: block;"></i>検索条件を入力して検索してください</td></tr>';
+    document.getElementById('pp-work-table-body').innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 20px; color: #cbd5e1;">行を選択してください</td></tr>';
+    document.getElementById('pp-material-table-body').innerHTML = '<tr><td colspan="8" style="text-align: center; padding: 20px; color: #cbd5e1;">行を選択してください</td></tr>';
+    document.getElementById('pp-outsource-table-body').innerHTML = '<tr><td colspan="8" style="text-align: center; padding: 20px; color: #cbd5e1;">行を選択してください</td></tr>';
+}
+
+// 印刷スタブ
+function printProcessingProgress() { window.print(); }
+function printSelectedParts() { alert('選択部品の準備印刷を開始します（デモ）'); }
+
+// グローバルに公開
+window.initializeProcessingProgressPage = initializeProcessingProgressPage;
+window.searchProcessingProgress = searchProcessingProgress;
+window.clearPPSearch = clearPPSearch;
+window.printProcessingProgress = printProcessingProgress;
+window.printSelectedParts = printSelectedParts;
+window.selectPPRow = selectPPRow;
+
+
 // 作業票を保存
+// 作業票の部門別バリデーションと表示切り替え
+function updateWorkTicketValidation() {
+    const department = document.querySelector('input[name="department"]:checked')?.value;
+    const drawingNoLabel = document.querySelector('label[for="work-ticket-drawing-no"]') || 
+                          document.getElementById('work-ticket-drawing-no')?.previousElementSibling;
+    const drawingNoInput = document.getElementById('work-ticket-drawing-no');
+    
+    if (department === '明石') {
+        // 加工部門：図面番号を強調（必須扱い）
+        if (drawingNoLabel) drawingNoLabel.innerHTML = '図面番号 <span style="color: #FFD700;">*</span>';
+        if (drawingNoInput) drawingNoInput.placeholder = '図面単位で入力 (必須)';
+    } else {
+        // 設計・組立等：工事番号単位
+        if (drawingNoLabel) drawingNoLabel.innerHTML = '図面番号';
+        if (drawingNoInput) drawingNoInput.placeholder = '図面番号 (任意)';
+    }
+}
+
+// 既存のsaveWorkTicketを仕様に合わせてアップグレード
 async function saveWorkTicket() {
     const dateInput = document.getElementById('work-ticket-date');
     const workerInput = document.getElementById('work-ticket-worker');
+    const department = document.querySelector('input[name="department"]:checked')?.value;
     const constructNoInput = document.getElementById('work-ticket-construct-no');
     const drawingNoInput = document.getElementById('work-ticket-drawing-no');
-    const partNoInput = document.getElementById('work-ticket-part-no');
-    const projectNameInput = document.getElementById('work-ticket-project-name');
-    const orderFromInput = document.getElementById('work-ticket-order-from');
-    const deliveryToInput = document.getElementById('work-ticket-delivery-to');
     
+    // 基本バリデーション
+    if (!workerInput?.value) { showMessage('作業者を選択してください', 'warning'); return; }
+    if (!constructNoInput?.value) { showMessage('工事番号を入力してください', 'warning'); return; }
+    
+    // 加工部門の場合は図面番号を必須にする
+    if (department === '明石' && !drawingNoInput?.value) {
+        showMessage('加工部門は図面番号の入力が必須です', 'warning');
+        drawingNoInput.focus();
+        return;
+    }
+
     const items = [];
     const list = document.getElementById('work-ticket-items-list');
     if (list) {
         const rows = list.querySelectorAll('tr');
-        rows.forEach(row => {
-            const constructNo = row.querySelector('input[name*="[construct_no]"]')?.value;
-            const drawingJob = row.querySelector('input[name*="[drawing_job]"]')?.value;
-            const partNo = row.querySelector('input[name*="[part_no]"]')?.value;
-            const workCode = row.querySelector('input[name*="[work_code]"]')?.value;
-            const holding = row.querySelector('input[name*="[holding]"]')?.checked;
-            const unmanned = row.querySelector('input[name*="[unmanned]"]')?.checked;
-            const urgent = row.querySelector('input[name*="[urgent]"]')?.checked;
-            const separate = row.querySelector('input[name*="[separate]"]')?.checked;
-            const guidance = row.querySelector('input[name*="[guidance]"]')?.checked;
-            const workName = row.querySelector('input[name*="[work_name]"]')?.value;
-            const quantity = row.querySelector('input[name*="[quantity]"]')?.value;
-            const workTime = row.querySelector('input[name*="[work_time]"]')?.value;
+        rows.forEach((row) => {
+            const workCode = row.querySelector('.work-code-input')?.value;
+            const workName = row.querySelector('.work-name-hidden-input')?.value;
+            const quantity = parseFloat(row.querySelector('input[name*="[quantity]"]')?.value) || 0;
+            const workTime = parseFloat(row.querySelector('input[name*="[work_time]"]')?.value) || 0;
             
-            if (constructNo || drawingJob || partNo || workCode || workName) {
+            if (workCode || workName || workTime > 0) {
                 items.push({
-                    construct_no: constructNo || '',
-                    drawing_job: drawingJob || '',
-                    part_no: partNo || '',
                     work_code: workCode || '',
-                    holding: holding || false,
-                    unmanned: unmanned || false,
-                    urgent: urgent || false,
-                    separate: separate || false,
-                    guidance: guidance || false,
                     work_name: workName || '',
-                    quantity: quantity || 0,
-                    work_time: workTime || 0
+                    quantity: quantity,
+                    work_time: Math.round(workTime * 10) / 10 // 小数点1桁に丸める
                 });
             }
         });
     }
     
     if (items.length === 0) {
-        showMessage('作業項目を追加してください', 'warning');
+        showMessage('作業内容を入力してください', 'warning');
         return;
     }
-    
-    const workTicketData = {
-        date: dateInput?.value || new Date().toISOString().split('T')[0],
-        worker: workerInput?.value || '',
-        department: document.querySelector('input[name="department"]:checked')?.value || '',
-        no_drawing: document.getElementById('work-ticket-no-drawing')?.checked || false,
-        svsv_mtmt: document.getElementById('work-ticket-svsv-mtmt')?.checked || false,
-        job_type_1: document.getElementById('work-ticket-job-type-1')?.value || '',
-        job_type_2: document.getElementById('work-ticket-job-type-2')?.value || '',
-        construct_no: constructNoInput?.value || '',
-        machine_type: document.getElementById('work-ticket-machine-type')?.value || '',
-        unit: document.getElementById('work-ticket-unit')?.value || '',
-        register_with_unit: document.getElementById('work-ticket-register-with-unit')?.checked || false,
-        drawing_no: drawingNoInput?.value || '',
-        part_no: partNoInput?.value || '',
-        project_name: projectNameInput?.value || '',
-        order_from: orderFromInput?.value || '',
-        delivery_to: deliveryToInput?.value || '',
-        items: items
-    };
-    
-    console.log('作業票データ:', workTicketData);
-    
-    // ここでSupabaseに保存する処理を実装
-    // 現在はコンソールに出力
-    showMessage('作業票を登録しました', 'success');
-    
-    // フォームをクリア
-    clearWorkTicketForm();
-    // listは既に5200行目で宣言されているので、再宣言せずに使用
-    if (list) {
-        list.innerHTML = `
-            <tr>
-                <td colspan="13" style="text-align: center; padding: 40px; color: var(--text-secondary);">
-                    <i class="fas fa-inbox" style="font-size: 32px; margin-bottom: 12px; display: block; opacity: 0.5;"></i>
-                    作業項目がありません
-                </td>
-            </tr>
-        `;
+
+    // 工数合計のチェック（7.75hとの比較）
+    const totalHours = items.reduce((sum, item) => sum + item.work_time, 0);
+    if (totalHours !== 7.75) {
+        const confirmMsg = `工数合計が ${totalHours}h です。定時(7.75h)と異なりますが、このまま登録しますか？`;
+        if (!confirm(confirmMsg)) {
+            return;
+        }
     }
-    updateWorkTicketTotal();
+
+    const baseData = {
+        date: dateInput?.value,
+        worker_code: workerInput?.value,
+        department: department,
+        construct_no: constructNoInput?.value,
+        drawing_no: drawingNoInput?.value || null,
+        part_no: document.getElementById('work-ticket-part-no')?.value || null,
+        register_date: new Date().toISOString()
+    };
+
+    try {
+        // 各項目を保存（t_work_recordsテーブルを想定）
+        const recordsToInsert = items.map(item => ({
+            ...baseData,
+            ...item
+        }));
+
+        const { error } = await getSupabaseClient()
+            .from('t_work_records') // 実際のテーブル名に合わせて調整
+            .insert(recordsToInsert);
+
+        if (error) throw error;
+
+        showMessage(`${items.length} 件の作業票を登録しました`, 'success');
+        clearWorkTicketForm();
+        
+        // 登録成功時に流れ星を降らせる
+        createShootingStars();
+    } catch (error) {
+        console.error('作業票保存エラー:', error);
+        // テーブルがない場合はシミュレーション
+        if (error.message.includes('not found')) {
+            console.log('保存データ(シミュレーション):', baseData, items);
+            showMessage('登録が完了しました（デモモード）', 'success');
+            clearWorkTicketForm();
+        } else {
+            showMessage('保存に失敗しました: ' + error.message, 'error');
+        }
+    }
 }
+
+// グローバルに公開
+window.updateWorkTicketValidation = updateWorkTicketValidation;
+window.saveWorkTicket = saveWorkTicket;
+
 
 // カスタムフォームフィールドを生成
 function generateCustomFormFields(container, fields, data) {
@@ -6800,9 +8618,30 @@ function generateDefaultFormFields(container, data) {
         const excludedCols = ['id', 'created_at', 'updated_at', 'deleted_at'];
         const formColumns = columns.filter(col => !excludedCols.includes(col.toLowerCase()));
 
+        // フィールド数に応じてグリッド列数を変更
+        if (formColumns.length > 15) {
+            container.style.gridTemplateColumns = 'repeat(3, 1fr)';
+        } else if (formColumns.length > 8) {
+            container.style.gridTemplateColumns = 'repeat(2, 1fr)';
+        } else {
+            // フィールドが少ない場合は1列にする（それぞれ分ける）
+            container.style.gridTemplateColumns = '1fr';
+        }
+
         formColumns.forEach(col => {
             const field = document.createElement('div');
-            field.className = 'form-field form-field-half';
+            
+            // 重要そうなフィールドや長いフィールドは全幅にする
+            const colLower = col.toLowerCase();
+            const isFullWidth = colLower.includes('memo') || colLower.includes('note') || 
+                               colLower.includes('description') || colLower.includes('詳細') || 
+                               colLower.includes('address') || colLower.includes('住所') ||
+                               colLower.includes('name') && !colLower.includes('staff');
+            
+            field.className = isFullWidth ? 'form-field form-field-full' : 'form-field';
+            if (isFullWidth) {
+                field.style.gridColumn = '1 / -1';
+            }
             const value = data && data[col] !== undefined && data[col] !== null ? String(data[col]) : '';
             const escapedValue = value.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
             
@@ -6814,7 +8653,6 @@ function generateDefaultFormFields(container, data) {
             let inputHTML = '';
             
             // カラム名からタイプを推測
-            const colLower = col.toLowerCase();
             if (colLower.includes('date') || colLower.includes('日')) {
                 inputType = 'date';
                 inputHTML = `<input type="date" name="${col}" value="${escapedValue}" class="form-input">`;
@@ -7018,15 +8856,62 @@ async function saveRecord() {
             }
             showMessage('データを登録しました', 'success');
             
-            // 工事番号が登録された場合は使用済みリストに追加
+            // 工事番号が登録された場合はt_constructionnumberテーブルにも登録
             const constructNo = data['Construct No'] || data['construct_no'] || data['工事番号'];
             if (constructNo) {
+                // t_constructionnumberテーブルに登録
+                const today = new Date().toISOString().split('T')[0];
+                const orderDate = data['Order Date'] || data['Register Date'] || data['受注登録日'] || today;
+                
+                // 日付形式を変換（YYYY-MM-DD形式に）
+                let formattedDate = orderDate;
+                if (orderDate && typeof orderDate === 'string') {
+                    // YYYY/MM/DD形式をYYYY-MM-DDに変換
+                    formattedDate = orderDate.replace(/\//g, '-');
+                    // 既にYYYY-MM-DD形式の場合はそのまま
+                    if (!/^\d{4}-\d{2}-\d{2}/.test(formattedDate)) {
+                        formattedDate = today; // 変換できない場合は今日の日付を使用
+                    }
+                }
+                
+                try {
+                    const supabase = getSupabaseClient();
+                    if (supabase) {
+                        const { error: insertError } = await supabase
+                            .from('t_constructionnumber')
+                            .insert({
+                                constructno: constructNo,
+                                orderdate: formattedDate
+                            });
+                        
+                        if (!insertError) {
+                            console.log('t_constructionnumberに登録しました:', constructNo, formattedDate);
+                        } else if (insertError.code === '23505') {
+                            // 重複エラーの場合は無視
+                            console.log('工事番号は既にt_constructionnumberに登録されています:', constructNo);
+                        } else {
+                            console.error('t_constructionnumberへの登録に失敗しました:', insertError);
+                            showMessage(`工事番号「${constructNo}」のt_constructionnumberへの登録に失敗しました: ${insertError.message || '不明なエラー'}`, 'warning');
+                        }
+                    }
+                } catch (error) {
+                    console.warn('t_constructionnumberへの登録でエラーが発生しました:', error);
+                }
+                
+                // 使用済みリストに追加（既存の処理）
                 await saveUsedConstructNumberOnRegister(constructNo);
                 // モーダルが開いている場合は一覧を更新
                 const modal = document.getElementById('construct-number-modal');
                 if (modal && modal.style.display === 'flex') {
                     const selectElement = document.getElementById('construct-number-select');
                     await loadUsedConstructNumbersListInline(selectElement ? selectElement.value : null);
+                }
+                
+                // モニターを自動更新
+                if (typeof loadConstructionNumberStatusPage === 'function') {
+                    setTimeout(() => {
+                        loadConstructionNumberStatusPage();
+                    }, 500);
                 }
             }
             
@@ -7088,6 +8973,67 @@ function showMessage(message, type = 'info') {
             msg.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         }, 100);
     }
+
+    // 成功メッセージの場合、流れ星エフェクトを表示
+    if (type === 'success') {
+        createShootingStars();
+    }
+}
+
+// 流れ星エフェクトの生成
+function createShootingStars() {
+    const container = document.createElement('div');
+    container.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 99999; overflow: hidden;';
+    document.body.appendChild(container);
+
+    const starCount = 15;
+    for (let i = 0; i < starCount; i++) {
+        setTimeout(() => {
+            const star = document.createElement('div');
+            const startX = Math.random() * window.innerWidth;
+            const startY = Math.random() * (window.innerHeight / 2);
+            const duration = 1000 + Math.random() * 1000;
+            
+            star.style.cssText = `
+                position: absolute;
+                top: ${startY}px;
+                left: ${startX}px;
+                width: 2px;
+                height: 2px;
+                background: white;
+                border-radius: 50%;
+                box-shadow: 0 0 10px 2px white, 0 0 20px 4px rgba(165, 180, 252, 0.5);
+                opacity: 0;
+                transform: rotate(-45deg);
+            `;
+
+            const tail = document.createElement('div');
+            tail.style.cssText = `
+                position: absolute;
+                top: 0;
+                left: 0;
+                width: 100px;
+                height: 1px;
+                background: linear-gradient(to right, white, transparent);
+                transform-origin: left center;
+            `;
+            star.appendChild(tail);
+            container.appendChild(star);
+
+            const animation = star.animate([
+                { transform: 'translate(0, 0) rotate(-45deg)', opacity: 0 },
+                { transform: 'translate(0, 0) rotate(-45deg)', opacity: 1, offset: 0.1 },
+                { transform: 'translate(400px, 400px) rotate(-45deg)', opacity: 0 }
+            ], {
+                duration: duration,
+                easing: 'ease-out'
+            });
+
+            animation.onfinish = () => star.remove();
+        }, Math.random() * 1000);
+    }
+
+    setTimeout(() => container.remove(), 3000);
 }
 
 // HTMLエスケープ関数
@@ -7196,6 +9142,9 @@ function closeConstructNumberModal() {
     modal.style.display = 'none';
 }
 
+// モニター自動更新のインターバルID
+let monitorAutoRefreshInterval = null;
+
 // 工事番号採番ページを初期化
 async function initializeConstructNumberPage() {
     console.log('initializeConstructNumberPage: 初期化を開始します');
@@ -7224,6 +9173,13 @@ async function initializeConstructNumberPage() {
     form.reset();
     resultInput.value = '';
     
+    // モーダルが表示されていないことを確認（念のため）
+    const confirmModal = document.getElementById('construct-number-confirm-modal');
+    if (confirmModal) {
+        confirmModal.classList.remove('modal-active');
+        confirmModal.style.display = 'none';
+    }
+    
     // 現在の登録フォームから工事番号台の値を取得して設定
     const currentKoujibangouSelect = document.querySelector('select[name="工事番号台"]');
     if (currentKoujibangouSelect && currentKoujibangouSelect.value) {
@@ -7234,42 +9190,90 @@ async function initializeConstructNumberPage() {
     selectElement.onchange = async function() {
         const selectedValue = this.value;
         await loadUsedConstructNumbersListPage(selectedValue || null);
+        // モニターも更新
+        await loadConstructionNumberStatusPage();
     };
     
     // 使用済み一覧を読み込む（初期値でフィルタリング）
     await loadUsedConstructNumbersListPage(selectElement.value || null);
-    console.log('initializeConstructNumberPage: 初期化が完了しました');
+    
+    // 使用状況一覧を読み込む
+    await loadConstructionNumberStatusPage();
+    
+    // モニターの自動更新を開始（30秒ごと）
+    if (monitorAutoRefreshInterval) {
+        clearInterval(monitorAutoRefreshInterval);
+    }
+    monitorAutoRefreshInterval = setInterval(async () => {
+        console.log('モニターを自動更新します...');
+        await loadConstructionNumberStatusPage();
+    }, 30000); // 30秒ごとに更新
+    
+    console.log('initializeConstructNumberPage: 初期化が完了しました（自動更新開始）');
 }
 
 // 工事番号を取得（ページ版）
 async function getConstructNumberPage() {
     const selectElement = document.getElementById('construct-number-select-page');
     const resultInput = document.getElementById('construct-number-result-page');
-    const applyBtn = document.getElementById('apply-construct-number-btn-page');
+    const submitBtn = document.querySelector('#construct-number-form-page button[type="submit"]');
     
     if (!selectElement || !selectElement.value) {
         showMessage('工事番号台を選択してください', 'warning');
         return;
     }
     
-    try {
-        // 工事番号を生成
-        const koujibangou = selectElement.value;
-        await generateNextConstructNumberForPage(koujibangou);
+    // 連続取得対応：処理中はボタンを無効化
+    if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.style.opacity = '0.6';
+        submitBtn.style.cursor = 'not-allowed';
+        const originalText = submitBtn.innerHTML;
+        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 取得中...';
         
-        // 結果を表示
-        const resultValue = resultInput.value;
-        if (resultValue) {
-            // 工事番号が取得されたら自動的に確認ポップアップを表示
-            setTimeout(() => {
-                applyConstructNumberPage();
-            }, 300);
-        } else {
+        try {
+            // 工事番号を生成
+            const koujibangou = selectElement.value;
+            await generateNextConstructNumberForPage(koujibangou);
+            
+            // 結果を表示
+            const resultValue = resultInput.value;
+            if (resultValue) {
+                // 工事番号が取得されたら自動的に確認ポップアップを表示
+                setTimeout(() => {
+                    applyConstructNumberPage();
+                }, 300);
+            } else {
+                showMessage('工事番号の取得に失敗しました', 'error');
+            }
+        } catch (error) {
+            console.error('工事番号取得エラー:', error);
+            showMessage('工事番号の取得に失敗しました', 'error');
+        } finally {
+            // 処理完了後にボタンを再度有効化
+            submitBtn.disabled = false;
+            submitBtn.style.opacity = '1';
+            submitBtn.style.cursor = 'pointer';
+            submitBtn.innerHTML = originalText;
+        }
+    } else {
+        // ボタンが見つからない場合のフォールバック
+        try {
+            const koujibangou = selectElement.value;
+            await generateNextConstructNumberForPage(koujibangou);
+            
+            const resultValue = resultInput.value;
+            if (resultValue) {
+                setTimeout(() => {
+                    applyConstructNumberPage();
+                }, 300);
+            } else {
+                showMessage('工事番号の取得に失敗しました', 'error');
+            }
+        } catch (error) {
+            console.error('工事番号取得エラー:', error);
             showMessage('工事番号の取得に失敗しました', 'error');
         }
-    } catch (error) {
-        console.error('工事番号取得エラー:', error);
-        showMessage('工事番号の取得に失敗しました', 'error');
     }
 }
 
@@ -7278,28 +9282,825 @@ async function generateNextConstructNumberForPage(koujibangou) {
     const resultInput = document.getElementById('construct-number-result-page');
     if (!resultInput) return;
     
-    // モーダル版と同じロジックを使用
+    // プレフィックスを抽出（「番台」を削除）
+    let prefix = koujibangou.replace('番台', '').trim();
+    
+    // 2000番台、2900番台、5000番台など4文字数字の場合は、ルールマスタのプレフィックスをそのまま使用
+    // ただし、実際の検索では「20」で始まる番号も考慮する必要がある
+    // ルールマスタのプレフィックスを確認して使用
+    let rulePrefix = prefix;
+    
+    try {
+        const supabase = getSupabaseClient();
+        if (!supabase) {
+            showMessage('Supabaseクライアントが初期化されていません', 'error');
+            return;
+        }
+
+        // ルールマスタから該当するプレフィックスを取得
+        if (/^\d{4}$/.test(prefix)) {
+            // 4文字の数字（2000, 2900, 5000など）の場合
+            // ルールマスタには「2000」として登録されているのでそのまま使用
+            rulePrefix = prefix;
+        } else if (/^\d{2}$/.test(prefix)) {
+            // 2文字の数字（10, 20, 30など）の場合
+            rulePrefix = prefix;
+        }
+        // その他（3C, 3Bなど）はそのまま使用
+
+        // 新しい関数を使用して次の番号を取得
+        const { data, error } = await supabase.rpc('get_next_construction_number', {
+            p_prefix: rulePrefix
+        });
+
+        if (error) {
+            // エラー時は既存のロジックにフォールバック
+            console.warn('新しい関数でエラー、既存ロジックにフォールバック:', error);
     const selectElement = document.getElementById('construct-number-select-page');
     await generateNextConstructNumberForModal(koujibangou, resultInput, selectElement);
+            return;
+        }
+
+        if (data && data.length > 0) {
+            const info = data[0];
+            resultInput.value = info.next_number || '';
+        } else {
+            // データがない場合は既存のロジックにフォールバック
+            const selectElement = document.getElementById('construct-number-select-page');
+            await generateNextConstructNumberForModal(koujibangou, resultInput, selectElement);
+        }
+    } catch (error) {
+        console.error('次の番号取得エラー:', error);
+        // エラー時は既存のロジックにフォールバック
+        const selectElement = document.getElementById('construct-number-select-page');
+        await generateNextConstructNumberForModal(koujibangou, resultInput, selectElement);
+    }
+}
+
+// 詳細情報表示関数は削除（不要になったため）
+
+// 使用状況一覧を読み込む（ページ版）
+async function loadConstructionNumberStatusPage() {
+    const container = document.getElementById('cn-status-cards-container');
+    if (!container) {
+        console.error('cn-status-cards-container要素が見つかりません');
+        return;
+    }
+
+    try {
+        const supabase = getSupabaseClient();
+        if (!supabase) {
+            container.innerHTML = `
+                <div style="grid-column: 1/-1; text-align: center; padding: 40px; color: var(--text-tertiary);">
+                    <i class="fas fa-exclamation-triangle" style="font-size: 24px; margin-bottom: 12px; opacity: 0.5; display: block; color: #EF4444;"></i>
+                    <p style="font-size: 14px; margin: 0;">Supabaseクライアントが初期化されていません</p>
+                </div>
+            `;
+            return;
+        }
+
+        // ビューから取得を試みる（タイムアウト付き）
+        let data = null;
+        let error = null;
+        
+        try {
+            // タイムアウトを設定（3秒）
+            const timeoutPromise = new Promise((_, reject) => 
+                setTimeout(() => reject(new Error('タイムアウト')), 3000)
+            );
+            
+            const queryPromise = supabase
+                .from('V_ConstructionNumberStatus')
+                .select('*')
+                .order('SortOrder', { ascending: true });
+            
+            const result = await Promise.race([queryPromise, timeoutPromise]);
+            data = result.data;
+            error = result.error;
+        } catch (e) {
+            console.warn('V_ConstructionNumberStatusビューへのアクセスに失敗しました。直接テーブルから取得します...', e);
+            error = e;
+        }
+        
+        // ビューが使えない場合、直接テーブルからデータを取得
+        // 常に直接テーブルから取得するように変更（t_constructionnumberを確実に参照）
+        console.log('直接テーブルからデータを取得します（t_constructionnumberを確実に参照）...');
+        data = await loadConstructionNumberStatusFromTables();
+
+        // 選択された番台を取得
+        const selectElement = document.getElementById('construct-number-select-page');
+        const selectedPrefix = selectElement ? selectElement.value : null;
+        selectedPrefixForMonitor = selectedPrefix;
+
+        // 選択された番台でフィルタリング（完全一致のみ）
+        if (selectedPrefix && selectedPrefix !== '' && data) {
+            console.log('フィルタリング前のデータ数:', data.length);
+            console.log('選択されたプレフィックス:', selectedPrefix);
+            
+            const filteredData = data.filter(status => {
+                const statusPrefix = status.Prefix || status.PrefixName || '';
+                // 完全一致のみ
+                const matches = statusPrefix === selectedPrefix;
+                
+                if (matches) {
+                    console.log('マッチ:', statusPrefix, '←', selectedPrefix);
+                }
+                
+                return matches;
+            });
+            
+            console.log('フィルタリング後のデータ数:', filteredData.length);
+            data = filteredData;
+        }
+
+        // フィルタリングされている場合はコンテナのスタイルを変更（大きく表示）
+        const container = document.getElementById('cn-status-cards-container');
+        if (container) {
+            if (selectedPrefix && selectedPrefix !== '' && data && data.length > 0) {
+                // フィルタリング時は1列にして大きく表示
+                container.style.gridTemplateColumns = '1fr';
+                container.style.maxWidth = '100%';
+            } else {
+                // 通常時は3列固定
+                container.style.gridTemplateColumns = 'repeat(3, 1fr)';
+            }
+        }
+
+        // データを表示
+        displayConstructionNumberStatusPage(data || [], selectedPrefix);
+    } catch (error) {
+        console.error('使用状況読み込みエラー:', error);
+        if (container) {
+            const errorMessage = error.message || '不明なエラー';
+            const errorCode = error.code || 'N/A';
+            container.innerHTML = `
+                <div style="grid-column: 1/-1; text-align: center; padding: 40px; color: var(--text-tertiary);">
+                    <i class="fas fa-exclamation-triangle" style="font-size: 24px; margin-bottom: 12px; opacity: 0.5; display: block; color: #EF4444;"></i>
+                    <p style="font-size: 14px; color: #EF4444; font-weight: 600; margin: 0 0 8px 0;">読み込みエラー</p>
+                    <p style="font-size: 12px; color: #6b7280; margin: 0 0 4px 0;">${escapeHtml(errorMessage)}</p>
+                    <p style="font-size: 11px; color: #9ca3af; margin: 0 0 12px 0;">エラーコード: ${errorCode}</p>
+                    <button type="button" class="btn-secondary btn-small" onclick="loadConstructionNumberStatusPage()" 
+                            style="padding: 6px 12px; font-size: 11px;">
+                        <i class="fas fa-redo"></i> 再試行
+                    </button>
+                </div>
+            `;
+        }
+    }
+}
+
+// ビューが使えない場合、直接テーブルから使用状況を取得（M_ConstructionNumberRuleなし）
+async function loadConstructionNumberStatusFromTables() {
+    try {
+        const supabase = getSupabaseClient();
+        if (!supabase) {
+            throw new Error('Supabaseクライアントが初期化されていません');
+        }
+
+        // 並列でデータを取得
+        const [ordersResult, constructNumbersResult] = await Promise.allSettled([
+            supabase
+                .from('t_acceptorder')
+                .select('ConstructNo, OrderDate, CancelFlg')
+                .or('CancelFlg.is.null,CancelFlg.eq.false'),
+            supabase
+                .from('t_constructionnumber')
+                .select('constructno, orderdate')
+        ]);
+
+        const orders = ordersResult.status === 'fulfilled' && !ordersResult.value.error 
+            ? ordersResult.value.data || [] 
+            : [];
+        // カラム名を正規化
+        const constructNumbersRaw = constructNumbersResult.status === 'fulfilled' && !constructNumbersResult.value.error 
+            ? constructNumbersResult.value.data || [] 
+            : [];
+        const constructNumbers = constructNumbersRaw.map(item => ({
+            ConstructNo: item.constructno || '',
+            OrderDate: item.orderdate || null
+        }));
+
+        // 詳細なログを出力
+        console.log('=== 工事番号運用モニター データ取得結果 ===');
+        console.log('t_acceptorder:', {
+            status: ordersResult.status,
+            error: ordersResult.status === 'rejected' ? ordersResult.reason : (ordersResult.value?.error || null),
+            count: orders.length,
+            sample: orders.slice(0, 3).map(o => o.ConstructNo)
+        });
+        console.log('t_constructionnumber:', {
+            status: constructNumbersResult.status,
+            error: constructNumbersResult.status === 'rejected' ? constructNumbersResult.reason : (constructNumbersResult.value?.error || null),
+            count: constructNumbers.length,
+            sample: constructNumbers.slice(0, 3).map(c => c.ConstructNo)
+        });
+
+        if (ordersResult.status === 'rejected' || (ordersResult.status === 'fulfilled' && ordersResult.value.error)) {
+            console.warn('t_acceptorder取得エラー（無視して続行）:', ordersResult.status === 'rejected' ? ordersResult.reason : ordersResult.value.error);
+        }
+        if (constructNumbersResult.status === 'rejected' || (constructNumbersResult.status === 'fulfilled' && constructNumbersResult.value.error)) {
+            console.error('t_constructionnumber取得エラー:', constructNumbersResult.status === 'rejected' ? constructNumbersResult.reason : constructNumbersResult.value.error);
+        }
+
+        // すべての工事番号を結合（重複除去）- 最適化
+        // t_constructionnumberを優先して、t_acceptorderとマージ
+        const seen = new Map(); // ConstructNo -> { ConstructNo, OrderDate, source }
+        const allNumbers = [];
+        
+        // まず、t_constructionnumberから追加（優先）
+        for (const item of constructNumbers) {
+            const constructNo = String(item.ConstructNo || '').trim();
+            if (constructNo && !seen.has(constructNo)) {
+                seen.set(constructNo, { 
+                    ConstructNo: constructNo, 
+                    OrderDate: item.OrderDate,
+                    source: 't_constructionnumber'
+                });
+            }
+        }
+        
+        // 次に、t_acceptorderから追加（t_constructionnumberにないもののみ）
+        for (const item of orders) {
+            const constructNo = String(item.ConstructNo || '').trim();
+            if (constructNo && !seen.has(constructNo)) {
+                seen.set(constructNo, { 
+                    ConstructNo: constructNo, 
+                    OrderDate: item.OrderDate,
+                    source: 't_acceptorder'
+                });
+            }
+        }
+        
+        // Mapから配列に変換
+        allNumbers.push(...Array.from(seen.values()));
+        
+        // デバッグログ
+        console.log(`工事番号運用モニター: t_constructionnumberから${constructNumbers.length}件、t_acceptorderから${orders.length}件取得`);
+        console.log(`工事番号運用モニター: 合計${allNumbers.length}件のユニークな工事番号を処理`);
+        const fromTable = allNumbers.filter(n => n.source === 't_constructionnumber').length;
+        const fromOrder = allNumbers.filter(n => n.source === 't_acceptorder').length;
+        console.log(`工事番号運用モニター: t_constructionnumber由来${fromTable}件、t_acceptorder由来${fromOrder}件`);
+        
+        // サンプルデータを表示
+        if (allNumbers.length > 0) {
+            console.log('処理対象の工事番号サンプル（最初の10件）:', allNumbers.slice(0, 10).map(n => ({
+                ConstructNo: n.ConstructNo,
+                OrderDate: n.OrderDate,
+                source: n.source
+            })));
+        } else {
+            console.warn('警告: 処理対象の工事番号が0件です。t_constructionnumberテーブルにデータが存在するか確認してください。');
+        }
+
+        // 定義されているすべてのプレフィックスと範囲（キャッシュされたマップから取得）
+        const prefixDefinitions = getConstructNumberRangeMap();
+        
+        // 実際に使用されているプレフィックスを抽出（最適化：Mapを使用）
+        const prefixMap = new Map();
+        
+        // 各工事番号を一度だけ処理（O(n*m)からO(n)に改善）
+        for (const constructNoItem of allNumbers) {
+            const constructNo = String(constructNoItem.ConstructNo || '').trim();
+            if (!constructNo) continue;
+            
+            // source情報を削除（表示には不要）
+            const orderDate = constructNoItem.OrderDate;
+            
+            // 各プレフィックス定義をチェック（早期終了で最適化）
+            for (const [prefixKey, rangeInfo] of Object.entries(prefixDefinitions)) {
+                let matches = false;
+                
+                if (rangeInfo.pattern) {
+                    // パターンベース（S, Z, D, 3Aなど）
+                    if (constructNo.startsWith(rangeInfo.pattern)) {
+                        const numPart = constructNo.substring(rangeInfo.pattern.length);
+                        const num = parseInt(numPart, 10);
+                        if (!isNaN(num) && num >= rangeInfo.min && num <= rangeInfo.max) {
+                            matches = true;
+                        }
+                    }
+                } else {
+                    // 数値範囲（2000番台など）
+                    const num = parseInt(constructNo, 10);
+                    if (!isNaN(num) && num >= rangeInfo.min && num <= rangeInfo.max) {
+                        // 1000番台の場合は、純粋な数値のみ（文字列の長さもチェック）、1001-1999の範囲
+                        if (prefixKey === '1000番台') {
+                            if (constructNo.length <= 4 && num >= 1001 && num <= 1999) {
+                                matches = true;
+                            }
+                        } else {
+                            matches = true;
+                        }
+                    }
+                }
+                
+                if (matches) {
+                    if (!prefixMap.has(prefixKey)) {
+                        prefixMap.set(prefixKey, {
+                            prefix: prefixKey,
+                            prefixName: prefixKey,
+                            rangeInfo: rangeInfo,
+                            numbers: []
+                        });
+                    }
+                    prefixMap.get(prefixKey).numbers.push({
+                        ConstructNo: constructNo,
+                        OrderDate: orderDate
+                    });
+                    break; // マッチしたら次の工事番号へ（1つの番号は1つのプレフィックスにのみ属する）
+                }
+            }
+        }
+
+        // プレフィックスマッチングのデバッグ
+        console.log(`プレフィックス定義数: ${Object.keys(prefixDefinitions).length}`);
+        console.log(`プレフィックスマップのエントリ数: ${prefixMap.size}`);
+        if (prefixMap.size > 0) {
+            console.log('マッチしたプレフィックス:', Array.from(prefixMap.keys()));
+            prefixMap.forEach((data, key) => {
+                console.log(`  ${key}: ${data.numbers.length}件の工事番号`);
+            });
+        } else {
+            console.warn('警告: どのプレフィックスにもマッチしませんでした。工事番号の形式を確認してください。');
+        }
+
+        // 定義されているすべてのプレフィックスに対して使用状況を計算（使用されていない番台も含める）
+        const statusList = [];
+        
+        // 定義されているすべてのプレフィックスをループ
+        for (const [prefixKey, rangeInfo] of Object.entries(prefixDefinitions)) {
+            // 使用されている番台かどうかを確認
+            const prefixData = prefixMap.get(prefixKey);
+            
+            let uniqueNumbers = [];
+            let latestNumber = '---';
+            let latestOrderDate = null;
+            
+            if (prefixData && prefixData.numbers && prefixData.numbers.length > 0) {
+                // 重複除去（ConstructNoで）
+                const uniqueNumbersMap = new Map();
+                for (const item of prefixData.numbers) {
+                    if (!uniqueNumbersMap.has(item.ConstructNo)) {
+                        uniqueNumbersMap.set(item.ConstructNo, item);
+                    }
+                }
+                uniqueNumbers = Array.from(uniqueNumbersMap.values());
+                
+                // 最新の番号を取得
+                if (uniqueNumbers.length > 0) {
+                    // 数値としてソートして最大値を取得
+                    const numericNumbers = uniqueNumbers
+                        .map(item => {
+                            let num;
+                            if (rangeInfo.pattern) {
+                                const numPart = item.ConstructNo.substring(rangeInfo.pattern.length);
+                                num = parseInt(numPart, 10);
+                            } else {
+                                num = parseInt(item.ConstructNo, 10);
+                            }
+                            return { num, constructNo: item.ConstructNo, orderDate: item.OrderDate };
+                        })
+                        .filter(item => !isNaN(item.num))
+                        .sort((a, b) => b.num - a.num);
+                    
+                    if (numericNumbers.length > 0) {
+                        latestNumber = numericNumbers[0].constructNo;
+                        latestOrderDate = numericNumbers[0].orderDate;
+                    }
+                }
+            }
+
+            // 使用数を計算
+            const activeCount = uniqueNumbers.length;
+            
+            // 範囲を計算
+            const minValue = rangeInfo.min || 0;
+            const maxValue = rangeInfo.max || 0;
+            const totalRange = maxValue - minValue + 1;
+            
+            // 使用率を計算
+            const usageRate = totalRange > 0 ? (activeCount / totalRange) * 100 : 0;
+
+            // 世代（何巡目）を計算（最大値に達した回数をカウント）
+            let generation = 1;
+            if (uniqueNumbers.length > 0 && maxValue > 0) {
+                // 最大値に達しているかチェック
+                const maxNum = uniqueNumbers
+                    .map(item => {
+                        let num;
+                        if (rangeInfo.pattern) {
+                            const numPart = item.ConstructNo.substring(rangeInfo.pattern.length);
+                            num = parseInt(numPart, 10);
+                        } else {
+                            num = parseInt(item.ConstructNo, 10);
+                        }
+                        return num;
+                    })
+                    .filter(n => !isNaN(n))
+                    .sort((a, b) => b - a)[0];
+                
+                if (maxNum >= maxValue) {
+                    // 最大値に達している場合、巡回回数を計算
+                    // 簡易計算: 使用数が範囲を超えている場合、巡回していると判断
+                    generation = Math.floor(activeCount / totalRange) + 1;
+                }
+            }
+
+            statusList.push({
+                RuleID: prefixKey,
+                Prefix: prefixKey,
+                PrefixName: prefixKey,
+                Description: rangeInfo.description || '',
+                MinValue: minValue,
+                MaxValue: maxValue,
+                CurrentValue: latestNumber,
+                CycleYears: null,
+                CurrentGeneration: generation,
+                LastCycleDate: null,
+                ActiveCount: activeCount,
+                CompletedCount: 0,
+                TotalUsed: activeCount,
+                UsageRate: usageRate,
+                LatestNumber: latestNumber,
+                LatestOrderDate: latestOrderDate,
+                CycleStatus: usageRate > 95 ? 'まもなく巡回' : (usageRate > 80 ? '注意' : '正常'),
+                Color: '#3B82F6',
+                SortOrder: prefixKey,
+                Active: true
+            });
+        }
+
+        // SortOrderでソート（定義順に）
+        const sortOrder = ['1000番台', '2000番台', '2900番台', '3000番台', '3A00番台', '3B00番台', '3C00番台', '3P00番台', '3T00番台', 
+                          '4000番台', '4A00番台', '4B00番台', '4C00番台', '4P00番台', '4T00番台',
+                          '5000番台', '5A00番台', '5B00番台', '5E00番台',
+                          '6000番台', '7000番台', '7P00番台', '8000番台', '8A00番台', '8B00番台', '8E00番台', '9000番台',
+                          'S000番台', 'Z000番台', 'D000番台'];
+        
+        statusList.sort((a, b) => {
+            const indexA = sortOrder.indexOf(a.Prefix);
+            const indexB = sortOrder.indexOf(b.Prefix);
+            if (indexA === -1 && indexB === -1) return a.Prefix.localeCompare(b.Prefix);
+            if (indexA === -1) return 1;
+            if (indexB === -1) return -1;
+            return indexA - indexB;
+        });
+
+        return statusList;
+    } catch (error) {
+        console.error('テーブルから使用状況を取得する際にエラーが発生しました:', error);
+        throw error;
+    }
+}
+
+// 使用状況を表示（ページ版）- カード形式のダッシュボード
+function displayConstructionNumberStatusPage(statusList, selectedPrefix = null) {
+    const container = document.getElementById('cn-status-cards-container');
+    if (!container) {
+        console.error('cn-status-cards-container要素が見つかりません');
+        return;
+    }
+
+    if (!statusList || statusList.length === 0) {
+        container.innerHTML = `
+            <div style="grid-column: 1/-1; text-align: center; padding: 40px;">
+                <i class="fas fa-inbox" style="font-size: 24px; margin-bottom: 12px; opacity: 0.3; display: block; color: var(--text-tertiary);"></i>
+                <p style="color: var(--text-tertiary); font-size: 14px; margin: 0;">データがありません</p>
+            </div>
+        `;
+        return;
+    }
+
+    // 選択された番台がある場合は、その番台の説明を取得
+    let selectedDescription = '';
+    let selectedCategoryColor = '#3B82F6';
+    if (selectedPrefix) {
+        const rangeInfo = getConstructNumberRange(selectedPrefix);
+        if (rangeInfo) {
+            selectedDescription = rangeInfo.description || '';
+            selectedCategoryColor = rangeInfo.categoryColor || '#3B82F6';
+        }
+    }
+
+    // 選択された番台がある場合は説明を表示
+    let headerHtml = '';
+    if (selectedPrefix && selectedDescription) {
+        headerHtml = `
+            <div style="grid-column: 1/-1; background: ${selectedCategoryColor}15; border-left: 4px solid ${selectedCategoryColor}; border-radius: 4px; padding: 12px 16px; margin-bottom: 12px;">
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <div style="font-size: 12px; color: ${selectedCategoryColor}; font-weight: 700; background: ${selectedCategoryColor}; color: white; padding: 4px 8px; border-radius: 4px;">
+                        ${escapeHtml(selectedPrefix.replace('番台', ''))}
+                    </div>
+                    <div style="font-size: 13px; color: #374151; font-weight: 600; line-height: 1.5;">
+                        ${escapeHtml(selectedDescription)}
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    // 3列×11行のグリッドレイアウトで表示
+    container.innerHTML = headerHtml + statusList.map((status, index) => {
+        const usageRate = parseFloat(status.UsageRate || 0);
+        
+        // PDFの分類に基づいた色を取得
+        const rangeInfo = getConstructNumberRange(status.Prefix || status.PrefixName || '');
+        const categoryColor = rangeInfo ? (rangeInfo.categoryColor || '#3B82F6') : '#3B82F6';
+        
+        // 使用率に応じた色判定（カテゴリ色をベースに）
+        let color = categoryColor;
+        let statusLabel = '良好';
+        let bgLight = categoryColor + '15';
+        
+        if (usageRate > 95) {
+            color = '#EF4444'; // 赤（危険）
+            statusLabel = 'まもなく巡回';
+            bgLight = '#fef2f2';
+        } else if (usageRate > 80) {
+            color = '#F59E0B'; // 黄（注意）
+            statusLabel = '注意';
+            bgLight = '#fffbeb';
+        } else {
+            // 使用率が低い場合はカテゴリ色を使用
+            color = categoryColor;
+            bgLight = categoryColor + '15';
+        }
+
+        // プレフィックス名を取得（「番台」を削除して表示）
+        let prefixDisplay = status.PrefixName || status.Prefix || '';
+        if (prefixDisplay.includes('番台')) {
+            prefixDisplay = prefixDisplay.replace('番台', '');
+        }
+
+        // 最新の番号を取得
+        const latestNumber = status.LatestNumber || status.CurrentValue || '---';
+        
+        // 使用済み数と範囲上限を取得
+        const activeCount = status.ActiveCount || 0;
+        const maxValue = status.MaxValue || status.MaxRange || 0;
+        const minValue = status.MinValue || status.MinRange || 0;
+        const totalRange = maxValue - minValue + 1;
+        const remaining = Math.max(0, totalRange - activeCount);
+        
+        // 説明文を取得
+        const description = status.Description || '';
+
+        // 世代（何巡目）を取得
+        const generation = status.CurrentGeneration || 1;
+        const generationText = `${generation}巡目`;
+
+        // 3列×11行の細長いカード形式
+        // インデックスに基づいて背景色を交互に変更
+        const cellBg = index % 2 === 0 ? '#ffffff' : '#f9fafb';
+        
+        // アイコンを選択（使用率に応じて）
+        let icon = 'fa-check-circle';
+        let iconColor = color;
+        if (usageRate > 95) {
+            icon = 'fa-exclamation-triangle';
+            iconColor = '#EF4444';
+        } else if (usageRate > 80) {
+            icon = 'fa-exclamation-circle';
+            iconColor = '#F59E0B';
+        } else if (usageRate > 50) {
+            icon = 'fa-info-circle';
+            iconColor = categoryColor;
+        } else {
+            icon = 'fa-check-circle';
+            iconColor = categoryColor;
+        }
+        
+        return `
+            <div class="status-card" onclick="selectPrefixPage('${status.Prefix || ''}')" 
+                 style="background: linear-gradient(135deg, ${cellBg} 0%, ${cellBg === '#ffffff' ? '#f8f9fa' : '#ffffff'} 100%); 
+                        border: 1px solid #e5e7eb; border-left: 3px solid ${color}; border-radius: 8px; padding: 8px 12px; 
+                        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); cursor: pointer; position: relative; overflow: hidden; 
+                        display: flex; flex-direction: row; align-items: center; gap: 10px; min-height: 48px; 
+                        box-shadow: 0 1px 3px rgba(0,0,0,0.05), 0 1px 2px rgba(0,0,0,0.03);"
+                 onmouseover="this.style.background='linear-gradient(135deg, #f0f7ff 0%, #e0f2fe 100%)'; this.style.borderLeftColor='${color}'; this.style.borderLeftWidth='4px'; this.style.boxShadow='0 3px 8px rgba(59,130,246,0.12), 0 1px 3px rgba(0,0,0,0.08)'; this.style.transform='translateX(2px) scale(1.005)';"
+                 onmouseout="this.style.background='linear-gradient(135deg, ${cellBg} 0%, ${cellBg === '#ffffff' ? '#f8f9fa' : '#ffffff'} 100%)'; this.style.borderLeftColor='${color}'; this.style.borderLeftWidth='3px'; this.style.boxShadow='0 1px 3px rgba(0,0,0,0.05), 0 1px 2px rgba(0,0,0,0.03)'; this.style.transform='translateX(0) scale(1)';"
+                 title="${escapeHtml(description)}">
+                
+                <!-- 左側: アイコンとプレフィックス -->
+                <div style="display: flex; align-items: center; gap: 8px; flex-shrink: 0; min-width: 70px;">
+                    <div style="font-size: 14px; color: ${iconColor}; display: flex; align-items: center; justify-content: center; width: 28px; height: 28px; background: ${iconColor}15; border-radius: 6px;">
+                        <i class="fas ${icon}"></i>
+                    </div>
+                    <div style="display: flex; flex-direction: column; gap: 1px;">
+                        <div style="font-size: 11px; color: #374151; font-weight: 700; line-height: 1.1;">
+                            ${escapeHtml(prefixDisplay)}
+                        </div>
+                        <div style="font-size: 8px; color: #fff; background: ${color}; padding: 1px 4px; border-radius: 3px; font-weight: 700; white-space: nowrap; display: inline-block; line-height: 1.2;">
+                            ${generationText}
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 中央: 最新番号（強調） -->
+                <div style="flex: 0 0 85px; text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center;">
+                    <div style="font-size: 9px; color: #6b7280; font-weight: 600; margin-bottom: 1px; text-transform: uppercase; letter-spacing: 0.3px; line-height: 1.1;">
+                        最新
+                    </div>
+                    <div style="font-size: 16px; font-weight: 900; color: ${color}; font-family: 'JetBrains Mono', 'Courier New', monospace; line-height: 1.1; text-shadow: 0 1px 2px rgba(0,0,0,0.1);">
+                        ${escapeHtml(String(latestNumber))}
+                    </div>
+                </div>
+                
+                <!-- プログレスバー（横長） -->
+                <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; justify-content: center;">
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <div style="flex: 1; height: 10px; background: linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%); border-radius: 5px; overflow: hidden; position: relative; border: 1px solid #e5e7eb; box-shadow: inset 0 1px 2px rgba(0,0,0,0.05);">
+                            <div style="width: ${Math.min(usageRate, 100)}%; height: 100%; background: linear-gradient(135deg, ${color} 0%, ${color}dd 100%); border-radius: 5px; transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1); box-shadow: 0 1px 2px rgba(0,0,0,0.15); position: relative; overflow: hidden;">
+                                <div style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.3) 50%, transparent 100%); animation: shimmer 2s infinite;"></div>
+                            </div>
+                        </div>
+                        <div style="font-size: 10px; color: ${color}; font-weight: 700; width: 42px; text-align: right; flex-shrink: 0; font-family: 'JetBrains Mono', monospace; line-height: 1.1;">
+                            ${usageRate.toFixed(1)}%
+                        </div>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 6px; font-size: 9px; color: #64748b; line-height: 1.1;">
+                        <span style="display: flex; align-items: center; gap: 3px;">
+                            <i class="fas fa-check" style="color: ${color}; font-size: 7px;"></i>
+                            <strong style="color: ${color}; font-weight: 800;">${activeCount}</strong>/${totalRange}
+                        </span>
+                        <span style="color: #cbd5e1;">|</span>
+                        <span style="display: flex; align-items: center; gap: 3px;">
+                            <i class="fas fa-hourglass-half" style="color: #94a3b8; font-size: 7px;"></i>
+                            残<strong style="color: ${color}; font-weight: 800;">${remaining}</strong>
+                        </span>
+                    </div>
+                </div>
+            </div>
+            <style>
+                @keyframes shimmer {
+                    0% { transform: translateX(-100%); }
+                    100% { transform: translateX(100%); }
+                }
+            </style>
+        `;
+    }).join('');
+}
+
+// プレフィックスを選択（ページ版）
+function selectPrefixPage(prefix) {
+    const select = document.getElementById('construct-number-select-page');
+    if (select) {
+        // プレフィックスに一致するオプションを探す
+        const options = select.options;
+        for (let i = 0; i < options.length; i++) {
+            const optionValue = options[i].value.replace('番台', '').trim();
+            if (optionValue === prefix || optionValue.startsWith(prefix)) {
+                select.value = options[i].value;
+                // 工事番号を取得
+                getConstructNumberPage();
+                break;
+            }
+        }
+    }
+}
+
+// 使用状況一覧を更新（ページ版）
+function refreshConstructionNumberStatusPage() {
+    loadConstructionNumberStatusPage();
+}
+
+// 工事番号確認モーダルを結果表示用に書き換える関数
+function showConstructionNumberResultModal(constructNumber, isSuccess, message) {
+    const confirmModal = document.getElementById('construct-number-confirm-modal');
+    const confirmMessage = document.getElementById('construct-number-confirm-message');
+    const confirmValue = document.getElementById('construct-number-confirm-value');
+    const modalHeader = confirmModal?.querySelector('.modal-header h2');
+    const okBtn = document.getElementById('construct-number-confirm-ok');
+    const cancelBtn = document.getElementById('construct-number-confirm-cancel');
+    
+    if (!confirmModal || !confirmMessage || !confirmValue || !modalHeader || !okBtn) {
+        console.error('モーダル要素が見つかりません');
+        return;
+    }
+    
+    // ヘッダータイトルを変更
+    if (isSuccess) {
+        modalHeader.textContent = '登録完了';
+    } else {
+        modalHeader.textContent = '登録失敗';
+    }
+    
+    // メッセージを変更
+    confirmMessage.textContent = message;
+    
+    // 工事番号の表示を変更
+    if (isSuccess && constructNumber) {
+        confirmValue.textContent = constructNumber;
+        confirmValue.style.display = 'block';
+    } else {
+        confirmValue.style.display = 'none';
+    }
+    
+    // キャンセルボタンを非表示
+    if (cancelBtn) {
+        cancelBtn.style.display = 'none';
+    }
+    
+    // OKボタンを更新
+    okBtn.innerHTML = 'OK';
+    okBtn.disabled = false;
+    
+    // 既存のイベントリスナーを削除してから追加
+    const newOkBtn = okBtn.cloneNode(true);
+    okBtn.parentNode.replaceChild(newOkBtn, okBtn);
+    
+    // OKボタンのイベントリスナーを設定
+    newOkBtn.addEventListener('click', () => {
+        confirmModal.classList.remove('modal-active');
+        confirmModal.style.display = 'none';
+        confirmModal.style.visibility = 'hidden';
+        confirmModal.style.opacity = '0';
+        confirmModal.style.pointerEvents = 'none';
+        
+        // モーダルを元の状態に戻す
+        modalHeader.textContent = '工事番号確認';
+        confirmMessage.textContent = '以下の工事番号を使用しますか？';
+        confirmValue.style.display = 'block';
+        const cancelBtnRestore = document.getElementById('construct-number-confirm-cancel');
+        if (cancelBtnRestore) {
+            cancelBtnRestore.style.display = 'block';
+        }
+        const okBtnRestore = document.getElementById('construct-number-confirm-ok');
+        if (okBtnRestore) {
+            okBtnRestore.innerHTML = '<i class="fas fa-check"></i> 使用する';
+        }
+    });
+    
+    // モーダルを表示
+    confirmModal.removeAttribute('hidden');
+    confirmModal.classList.add('modal-active');
+    confirmModal.style.setProperty('display', 'flex', 'important');
+    confirmModal.style.setProperty('visibility', 'visible', 'important');
+    confirmModal.style.setProperty('opacity', '1', 'important');
+    confirmModal.style.setProperty('pointer-events', 'auto', 'important');
+    confirmModal.style.setProperty('z-index', '30000', 'important');
 }
 
 // 取得した工事番号を登録フォームに適用（ページ版）
 function applyConstructNumberPage() {
+    // 工事番号採番ページが表示されているか確認
+    const constructNumberPage = document.getElementById('construct-number-page');
+    if (!constructNumberPage || !constructNumberPage.classList.contains('active')) {
+        console.warn('工事番号採番ページが表示されていないため、モーダルを表示しません');
+        return;
+    }
+    
     const resultInput = document.getElementById('construct-number-result-page');
     
-    if (!resultInput || !resultInput.value) {
+    if (!resultInput || !resultInput.value || resultInput.value.trim() === '') {
         showMessage('工事番号が取得されていません', 'warning');
         return;
     }
     
     // カスタム確認モーダルを表示
-    const constructNumber = resultInput.value;
+    const constructNumber = resultInput.value.trim();
+    if (!constructNumber) {
+        return;
+    }
+    
     const confirmModal = document.getElementById('construct-number-confirm-modal');
     const confirmValue = document.getElementById('construct-number-confirm-value');
     
     if (confirmModal && confirmValue) {
+        // モーダルが既に表示されている場合は何もしない
+        if (confirmModal.style.display === 'flex' || confirmModal.style.display === '') {
+            return;
+        }
+        
+        // 再度、工事番号採番ページが表示されているか確認
+        const currentConstructNumberPage = document.getElementById('construct-number-page');
+        if (!currentConstructNumberPage || !currentConstructNumberPage.classList.contains('active')) {
+            console.warn('工事番号採番ページが表示されていないため、モーダルを表示しません');
+            return;
+        }
+        
+        // ダッシュボードページが表示されていないことを最終確認
+        const dashboardPage = document.getElementById('dashboard-page');
+        if (dashboardPage && dashboardPage.classList.contains('active')) {
+            console.warn('ダッシュボードページが表示されているため、モーダルを表示しません');
+            return;
+        }
+        
+        // ダッシュボードページが表示されていないことを最終確認（もう一度）
+        const finalDashboardCheck = document.getElementById('dashboard-page');
+        if (finalDashboardCheck && finalDashboardCheck.classList.contains('active')) {
+            console.warn('ダッシュボードページが表示されているため、モーダルを表示しません（最終確認）');
+            return;
+        }
+        
         confirmValue.textContent = constructNumber;
-        confirmModal.style.display = 'flex';
+        confirmModal.removeAttribute('hidden');
+        confirmModal.classList.add('modal-active');
+        confirmModal.style.setProperty('display', 'flex', 'important');
+        confirmModal.style.setProperty('visibility', 'visible', 'important');
+        confirmModal.style.setProperty('opacity', '1', 'important');
+        confirmModal.style.setProperty('pointer-events', 'auto', 'important');
+        confirmModal.style.setProperty('z-index', '30000', 'important');
         
         // イベントリスナーを設定（既存のものを削除してから追加）
         const okBtn = document.getElementById('construct-number-confirm-ok');
@@ -7316,36 +10117,67 @@ function applyConstructNumberPage() {
             e.preventDefault();
             e.stopPropagation();
             
+            // ボタンを無効化して二重クリックを防止
+            newOkBtn.disabled = true;
+            newOkBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 登録中...';
+            
             try {
                 const modalSelect = document.getElementById('construct-number-select-page');
                 
-                // この時点で使用済みとして記録
+                // この時点で使用済みとして記録（T_ConstructionNumberテーブルに保存）
                 const today = new Date().toISOString().split('T')[0];
-                console.log('使用済み番号を保存します（ページ版）:', constructNumber, today);
-                await saveUsedConstructNumber(constructNumber, today);
-                console.log('使用済み番号を保存しました（ページ版）');
+                console.log('工事番号を登録します:', constructNumber, today);
+                const saved = await saveUsedConstructNumberToTable(constructNumber, today);
                 
-                // 使用済み一覧を更新
-                if (modalSelect && modalSelect.value) {
-                    await loadUsedConstructNumbersListPage(modalSelect.value || null);
+                if (saved) {
+                    console.log('✓ 工事番号を登録しました:', constructNumber);
+                    
+                    // モーダルを閉じる
+                    confirmModal.classList.remove('modal-active');
+                    confirmModal.style.display = 'none';
+                    confirmModal.style.visibility = 'hidden';
+                    confirmModal.style.opacity = '0';
+                    confirmModal.style.pointerEvents = 'none';
+                    
+                    // 使用済み一覧を更新
+                    if (modalSelect && modalSelect.value) {
+                        await loadUsedConstructNumbersListPage(modalSelect.value || null);
+                    } else {
+                        await loadUsedConstructNumbersListPage(null);
+                    }
+                    
+                    // モニター（使用状況一覧）も更新
+                    await loadConstructionNumberStatusPage();
+                    
+                    console.log('一覧を更新しました');
+                    
+                    // 結果入力欄をクリア（次の番号取得に備える）
+                    const resultInput = document.getElementById('construct-number-result-page');
+                    if (resultInput) {
+                        resultInput.value = '';
+                    }
+                    
+                    // 成功メッセージを表示
+                    showMessage(`工事番号「${constructNumber}」を登録しました`, 'success');
                 } else {
-                    await loadUsedConstructNumbersListPage(null);
+                    console.error('✗ 工事番号の登録に失敗しました:', constructNumber);
+                    // エラーメッセージを表示
+                    showMessage(`工事番号「${constructNumber}」の登録に失敗しました`, 'error');
                 }
-                console.log('使用済み一覧を更新しました（ページ版）');
-                
-                // 確認モーダルを閉じる
-                confirmModal.style.display = 'none';
-                
-                showMessage(`工事番号「${constructNumber}」を使用済みとして記録しました`, 'success');
             } catch (error) {
-                console.error('工事番号適用エラー（ページ版）:', error);
-                console.error('エラー詳細（ページ版）:', {
+                console.error('工事番号登録エラー:', error);
+                console.error('エラー詳細:', {
                     message: error.message,
                     stack: error.stack,
                     name: error.name
                 });
-                showMessage('工事番号の適用に失敗しました: ' + (error.message || '不明なエラー'), 'error');
-                confirmModal.style.display = 'none';
+                
+                // エラーメッセージを表示
+                showMessage('工事番号の登録に失敗しました: ' + (error.message || '不明なエラー'), 'error');
+            } finally {
+                // ボタンを再度有効化
+                newOkBtn.disabled = false;
+                newOkBtn.innerHTML = '<i class="fas fa-check"></i> 使用する';
             }
             
             return false;
@@ -7354,6 +10186,7 @@ function applyConstructNumberPage() {
         newCancelBtn.addEventListener('click', (e) => {
             e.preventDefault();
             e.stopPropagation();
+            confirmModal.classList.remove('modal-active');
             confirmModal.style.display = 'none';
             return false;
         });
@@ -7377,40 +10210,193 @@ function applyConstructNumberPage() {
     }
 }
 
+// T_ConstructionNumberテーブルに工事番号を保存
+async function saveUsedConstructNumberToTable(constructNumber, orderDate) {
+    if (!constructNumber || !orderDate) {
+        console.error('工事番号またはオーダーデートが指定されていません');
+        return false;
+    }
+
+    try {
+        const supabase = getSupabaseClient();
+        if (!supabase) {
+            console.error('Supabaseクライアントが初期化されていません');
+            return false;
+        }
+
+        console.log('工事番号登録を開始:', constructNumber, orderDate);
+
+        // 重複チェック
+        console.log('重複チェックを実行します...');
+        const { data: existingData, error: checkError } = await supabase
+            .from('t_constructionnumber')
+            .select('constructno')
+            .eq('constructno', constructNumber)
+            .limit(1);
+        
+        if (checkError) {
+            console.error('重複チェックエラー:', checkError);
+            console.error('重複チェックエラー詳細:', {
+                message: checkError.message,
+                code: checkError.code,
+                details: checkError.details,
+                hint: checkError.hint
+            });
+        } else if (existingData && existingData.length > 0) {
+            console.log('工事番号は既に登録されています:', constructNumber);
+            return true;
+        }
+        
+        // データを挿入
+        console.log('データを挿入します:', { constructno: constructNumber, orderdate: orderDate });
+        const { data: insertData, error: insertError } = await supabase
+            .from('t_constructionnumber')
+            .insert({
+                constructno: constructNumber,
+                orderdate: orderDate
+            })
+            .select();
+        
+        console.log('挿入結果:', JSON.stringify({ data: insertData, error: insertError }, null, 2));
+        
+        if (insertError) {
+            // 重複エラーの場合は成功として扱う
+            if (insertError.code === '23505') {
+                console.log('工事番号は既に登録されています（重複エラー）:', constructNumber);
+                return true;
+            }
+            
+            console.error('t_constructionnumberへの登録に失敗しました:', JSON.stringify(insertError, null, 2));
+            console.error('エラー詳細:', JSON.stringify({
+                message: insertError.message,
+                code: insertError.code,
+                details: insertError.details,
+                hint: insertError.hint,
+                status: insertError.status,
+                statusText: insertError.statusText
+            }, null, 2));
+            return false;
+        }
+        
+        console.log('工事番号をt_constructionnumberに保存しました:', constructNumber, orderDate);
+        return true;
+    } catch (error) {
+        console.error('工事番号保存エラー:', error);
+        return false;
+    }
+}
+
 // 使用済み工事番号一覧を読み込む（ページ表示用）
+// T_ConstructionNumberテーブルから取得
 async function loadUsedConstructNumbersListPage(filterPrefix = null) {
     const tbody = document.getElementById('used-construct-numbers-list-page');
     if (!tbody) return;
     
-    let usedNumbers = await getUsedConstructNumbers();
+    try {
+        const supabase = getSupabaseClient();
+        
+        if (!supabase) {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="2" style="text-align: center; padding: 40px; color: var(--text-tertiary);">
+                        <span style="font-size: 13px;">Supabaseクライアントが初期化されていません</span>
+                    </td>
+                </tr>
+            `;
+            return;
+        }
+
+        // T_ConstructionNumberテーブルから取得
+        let query = supabase
+            .from('t_constructionnumber')
+            .select('constructno, orderdate')
+            .order('orderdate', { ascending: false })
+            .order('constructno', { ascending: true });
     
     // フィルタリング：工事番号台が選択されている場合
     if (filterPrefix) {
-        let prefix = '';
-        let prefix1 = '';
         const koujiValue = filterPrefix.replace('番台', '').trim();
         
-        if (koujiValue.length >= 1 && /^[A-Z]$/.test(koujiValue.substring(0, 1))) {
-            prefix1 = koujiValue.substring(0, 1);
-            prefix = '';
-        } else if (koujiValue.length >= 2) {
-            prefix = koujiValue.substring(0, 2);
-            prefix1 = koujiValue.substring(0, 1);
-        } else if (koujiValue.length === 1) {
-            prefix1 = koujiValue;
-        }
-        
-        usedNumbers = usedNumbers.filter(item => {
-            const num = typeof item === 'string' ? item : item.number;
-            const strValue = String(num).trim();
-            
-            if (prefix1 && /^[A-Z]$/.test(prefix1)) {
-                return strValue.startsWith(prefix1);
-            } else if (prefix) {
-                return strValue.startsWith(prefix);
+            // 数字のみの場合は適切なプレフィックスでフィルタリング
+            if (/^\d+$/.test(koujiValue)) {
+                // 2000番台の場合、「20」で始まる番号を取得（後で2001～2899の範囲でフィルタ）
+                if (koujiValue === '2000') {
+                    query = query.like('ConstructNo', '2%');
+                } else if (koujiValue === '3000') {
+                    // 3000番台の場合、「3」で始まる番号を取得（後で3001～3999の範囲でフィルタ）
+                    query = query.like('ConstructNo', '3%');
+                } else if (koujiValue === '4000') {
+                    // 4000番台の場合、「4」で始まる番号を取得（後で4001～4999の範囲でフィルタ）
+                    query = query.like('ConstructNo', '4%');
+                } else if (koujiValue === '5000') {
+                    // 5000番台の場合、「5」で始まる番号を取得（後で5001～5999の範囲でフィルタ）
+                    query = query.like('ConstructNo', '5%');
+                } else if (koujiValue.length >= 4) {
+                    // その他の4文字以上の数字は最初の4文字でフィルタ
+                    query = query.like('ConstructNo', `${koujiValue.substring(0, 4)}%`);
+                } else if (koujiValue.length >= 2) {
+                    // 2-3文字の場合は最初の2文字でフィルタ（例：10番台 → 10で始まる）
+                    query = query.like('ConstructNo', `${koujiValue.substring(0, 2)}%`);
+                }
+            } else if (koujiValue.length >= 1 && /^[A-Z]$/.test(koujiValue.substring(0, 1))) {
+                // 1文字のアルファベット（S, T, Z, Dなど）
+                query = query.like('ConstructNo', `${koujiValue.substring(0, 1)}%`);
+            } else if (koujiValue.length >= 2) {
+                // 2文字以上のアルファベット+数字（3B, 3C, 4Cなど）
+                query = query.like('ConstructNo', `${koujiValue.substring(0, 2)}%`);
             }
-            return false;
-        });
+        }
+
+        const { data, error } = await query;
+
+        if (error) {
+            console.error('工事番号一覧取得エラー:', error);
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="2" style="text-align: center; padding: 40px; color: var(--text-tertiary);">
+                        <span style="font-size: 13px;">データの取得に失敗しました</span>
+                    </td>
+                </tr>
+            `;
+            return;
+        }
+
+        // カラム名を正規化
+        let usedNumbers = (data || []).map(item => ({
+            ConstructNo: item.constructno || '',
+            OrderDate: item.orderdate || ''
+        }));
+    
+    // 範囲フィルタリング（2000番台 = 2001～2899など）
+    if (filterPrefix) {
+        const koujiValue = filterPrefix.replace('番台', '').trim();
+        if (/^\d+$/.test(koujiValue)) {
+            if (koujiValue === '2000') {
+                // 2000番台：2001～2899の範囲
+                usedNumbers = usedNumbers.filter(item => {
+                    const num = parseInt(item.ConstructNo);
+                    return !isNaN(num) && num >= 2001 && num <= 2899;
+                });
+            } else if (koujiValue === '3000') {
+                // 3000番台：3001～3999の範囲
+                usedNumbers = usedNumbers.filter(item => {
+                    const num = parseInt(item.ConstructNo);
+                    return !isNaN(num) && num >= 3001 && num <= 3999;
+                });
+            } else if (koujiValue === '4000') {
+                // 4000番台：4001～4999の範囲
+                usedNumbers = usedNumbers.filter(item => {
+                    const num = parseInt(item.ConstructNo);
+                    return !isNaN(num) && num >= 4001 && num <= 4999;
+                });
+            } else if (koujiValue === '5000') {
+                // 5000番台：5001～5999の範囲
+                usedNumbers = usedNumbers.filter(item => {
+                    const num = parseInt(item.ConstructNo);
+                    return !isNaN(num) && num >= 5001 && num <= 5999;
+                });
+            }
+        }
     }
     
     // ボタンの表示（権限チェックなし）
@@ -7437,8 +10423,8 @@ async function loadUsedConstructNumbersListPage(filterPrefix = null) {
     
     // 工事番号でソート（連番順）
     const sorted = usedNumbers.sort((a, b) => {
-        const numA = typeof a === 'string' ? a : a.number;
-        const numB = typeof b === 'string' ? b : b.number;
+            const numA = String(a.ConstructNo || '').trim();
+            const numB = String(b.ConstructNo || '').trim();
         // 数値部分と文字列部分を分離して比較
         const extractParts = (str) => {
             const match = str.match(/^([A-Z]*)(\d+)$/);
@@ -7447,8 +10433,8 @@ async function loadUsedConstructNumbersListPage(filterPrefix = null) {
             }
             return { prefix: str, number: 0 };
         };
-        const partsA = extractParts(String(numA).trim());
-        const partsB = extractParts(String(numB).trim());
+            const partsA = extractParts(numA);
+            const partsB = extractParts(numB);
         
         // プレフィックスで比較
         if (partsA.prefix !== partsB.prefix) {
@@ -7458,10 +10444,9 @@ async function loadUsedConstructNumbersListPage(filterPrefix = null) {
         return partsA.number - partsB.number;
     });
     
-    tbody.innerHTML = sorted.map((item, index) => {
-        const num = typeof item === 'string' ? item : item.number;
-        const date = typeof item === 'string' ? '' : (item.registerDate || item.date || '');
-        const itemId = typeof item === 'string' ? num : (item.id || `item-${index}`);
+        tbody.innerHTML = sorted.map((item) => {
+            const num = item.ConstructNo || '';
+            const date = item.OrderDate ? new Date(item.OrderDate).toLocaleDateString('ja-JP') : '';
         
         return `
             <tr style="border-bottom: 1px solid #eee; transition: background 0.2s;" onmouseover="this.style.background='#f5f5f5'" onmouseout="this.style.background=''">
@@ -7476,6 +10461,16 @@ async function loadUsedConstructNumbersListPage(filterPrefix = null) {
             </tr>
         `;
     }).join('');
+    } catch (error) {
+        console.error('工事番号一覧読み込みエラー:', error);
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="2" style="text-align: center; padding: 40px; color: var(--text-tertiary);">
+                    <span style="font-size: 13px;">エラーが発生しました</span>
+                </td>
+            </tr>
+        `;
+    }
 }
 
 // 工事番号をコピー（ページ版）
@@ -7491,6 +10486,68 @@ function copyConstructNumberPage() {
     showMessage('工事番号をクリップボードにコピーしました', 'success');
 }
 
+// 工事番号一覧を表示するヘルパー関数
+function displayConstructNumbers(tbody, data, filterPrefix, isLocalOnly = false) {
+    let usedNumbers = data.map(item => ({
+        ConstructNo: item.ConstructNo || '',
+        OrderDate: item.OrderDate || ''
+    }));
+    
+    // フィルタリング
+    if (filterPrefix) {
+        const koujiValue = filterPrefix.replace('番台', '').trim();
+        if (/^\d+$/.test(koujiValue)) {
+            if (koujiValue === '2000') {
+                usedNumbers = usedNumbers.filter(item => {
+                    const num = parseInt(item.ConstructNo);
+                    return !isNaN(num) && num >= 2001 && num <= 2899;
+                });
+            } else if (koujiValue === '3000') {
+                usedNumbers = usedNumbers.filter(item => {
+                    const num = parseInt(item.ConstructNo);
+                    return !isNaN(num) && num >= 3001 && num <= 3999;
+                });
+            } else if (koujiValue === '1000') {
+                usedNumbers = usedNumbers.filter(item => {
+                    const num = parseInt(item.ConstructNo);
+                    return !isNaN(num) && num >= 1001 && num <= 1999;
+                });
+            }
+        }
+    }
+    
+    if (usedNumbers.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="2" style="text-align: center; padding: 40px; color: var(--text-tertiary);">
+                    <i class="fas fa-inbox" style="font-size: 32px; margin-bottom: 12px; opacity: 0.3; display: block;"></i>
+                    <span style="font-size: 13px;">${filterPrefix ? '該当する運用中工事番号はありません' : '運用中工事番号はありません'}</span>
+                </td>
+            </tr>
+        `;
+        return;
+    }
+    
+    // ソート
+    usedNumbers.sort((a, b) => {
+        const numA = parseInt(a.ConstructNo) || 0;
+        const numB = parseInt(b.ConstructNo) || 0;
+        return numA - numB;
+    });
+    
+    // 表示
+    tbody.innerHTML = usedNumbers.map(item => `
+        <tr>
+            <td style="padding: 8px 12px; font-weight: 600;">${escapeHtml(String(item.ConstructNo))}</td>
+            <td style="padding: 8px 12px; color: var(--text-secondary);">${item.OrderDate || '-'}</td>
+        </tr>
+    `).join('');
+    
+    if (isLocalOnly) {
+        console.log('ローカルストレージのデータを表示しました:', usedNumbers.length, '件');
+    }
+}
+
 // グローバルに公開
 window.getConstructNumberPage = getConstructNumberPage;
 window.applyConstructNumberPage = applyConstructNumberPage;
@@ -7498,38 +10555,461 @@ window.copyConstructNumberPage = copyConstructNumberPage;
 window.editAllUsedConstructNumbers = editAllUsedConstructNumbers;
 window.removeUsedConstructNumberFromEdit = removeUsedConstructNumberFromEdit;
 window.saveAllUsedConstructNumbers = saveAllUsedConstructNumbers;
+window.selectPrefixPage = selectPrefixPage;
+window.refreshConstructionNumberStatusPage = refreshConstructionNumberStatusPage;
+window.exportUsedConstructNumbers = exportUsedConstructNumbers;
+window.importUsedConstructNumbersCSV = importUsedConstructNumbersCSV;
 
-// 工事番号を取得
+// プレフィックスから範囲情報を取得する関数
+// 範囲定義のマップ（キャッシュ用）
+// PDFの分類に基づいて色分け
+// VB.NETコードに基づいて正確な範囲を設定
+const CONSTRUCT_NUMBER_RANGES = {
+    '1000番台': { min: 1001, max: 1999, description: '営業手配(メーカーから客先へ直送／社内手配なし)', categoryColor: '#9CA3AF' }, // グレー（営業手配）1001-1999
+    '2000番台': { min: 2001, max: 2899, description: '受注金額2000万円以上', categoryColor: '#F97316' }, // オレンジ（高額受注）2001-2899
+    '2900番台': { min: 2901, max: 2999, description: '受注間近で受注金額2000万円以上', categoryColor: '#F59E0B' }, // アンバー（未受注品）2901-2999
+    '3000番台': { min: 3001, max: 3899, description: '通常の組立品', categoryColor: '#3B82F6' }, // 青（組立品）3001-3899
+    '3A00番台': { min: 3001, max: 3099, pattern: '3A', description: '2000番の出荷前の追加受注（組立品と単品部品）', categoryColor: '#3B82F6' },
+    '3B00番台': { min: 3001, max: 3099, pattern: '3B', description: '2000番の出荷後・検収前の追加受注（組立品と単品部品）', categoryColor: '#3B82F6' },
+    '3C00番台': { min: 3001, max: 3099, pattern: '3C', description: '簡単な組立品(一部分/図面変更なし)', categoryColor: '#3B82F6' },
+    '3P00番台': { min: 3001, max: 3099, pattern: '3P', description: '図面変更・仕様変更する部品', categoryColor: '#3B82F6' },
+    '3T00番台': { min: 3001, max: 3099, pattern: '3T', description: 'オーバーホール等の点検(ダイセット以外)', categoryColor: '#3B82F6' },
+    '3V00番台': { min: 3001, max: 3099, pattern: '3V', description: 'SVのみ', categoryColor: '#3B82F6' },
+    '3K00番台': { min: 3001, max: 3099, pattern: '3K', description: '現地工事に使用する部品', categoryColor: '#3B82F6' },
+    '4000番台': { min: 4001, max: 4899, description: '通常の組立品', categoryColor: '#3B82F6' }, // 青（組立品）4001-4899
+    '4A00番台': { min: 4001, max: 4099, pattern: '4A', description: '2000番の出荷前の追加受注（組立品と単品部品）', categoryColor: '#3B82F6' },
+    '4B00番台': { min: 4001, max: 4099, pattern: '4B', description: '2000番の出荷後・検収前の追加受注（組立品と単品部品）', categoryColor: '#3B82F6' },
+    '4C00番台': { min: 4001, max: 4099, pattern: '4C', description: '簡単な組立品(一部分/図面変更なし)', categoryColor: '#3B82F6' },
+    '4P00番台': { min: 4001, max: 4099, pattern: '4P', description: '図面変更・仕様変更する部品', categoryColor: '#3B82F6' },
+    '4T00番台': { min: 4001, max: 4099, pattern: '4T', description: 'オーバーホール等の点検(ダイセット以外)', categoryColor: '#3B82F6' },
+    '4V00番台': { min: 4001, max: 4099, pattern: '4V', description: 'SVのみ', categoryColor: '#3B82F6' },
+    '5000番台': { min: 5001, max: 5999, description: '上記以外の単品部品', categoryColor: '#10B981' }, // 緑（単品部品）5001-5999
+    '5A00番台': { min: 5001, max: 5099, pattern: '5A', description: '2000番の出荷前の追加受注（単品部品のみ）', categoryColor: '#10B981' },
+    '5B00番台': { min: 5001, max: 5099, pattern: '5B', description: '2000番の出荷後・検収前の追加受注（単品部品のみ）', categoryColor: '#10B981' },
+    '5E00番台': { min: 5001, max: 5099, pattern: '5E', description: '仕様内の新造管サイズ追加の部品・新規治具', categoryColor: '#10B981' },
+    '6000番台': { min: 6001, max: 6999, description: '未定義', categoryColor: '#8B5CF6' }, // 紫 6001-6999
+    '7000番台': { min: 7001, max: 7999, description: '出荷後無償手配（上記以外）', categoryColor: '#EC4899' }, // ピンク（出荷後無償）7001-7999
+    '7P00番台': { min: 7001, max: 7099, pattern: '7P', description: '出荷後無償手配（パーツ課から出荷する単品部品）', categoryColor: '#EC4899' },
+    '8000番台': { min: 8001, max: 8999, description: '上記以外の単品部品', categoryColor: '#10B981' }, // 緑（単品部品）8001-8999
+    '8A00番台': { min: 8001, max: 8099, pattern: '8A', description: '2000番の出荷前の追加受注（単品部品のみ）', categoryColor: '#10B981' },
+    '8B00番台': { min: 8001, max: 8099, pattern: '8B', description: '2000番の出荷後・検収前の追加受注（単品部品のみ）', categoryColor: '#10B981' },
+    '8E00番台': { min: 8001, max: 8099, pattern: '8E', description: '仕様内の新造管サイズ追加の部品・新規治具', categoryColor: '#10B981' },
+    '9000番台': { min: 9001, max: 9999, description: '試作品、テスト用設備、将来の受注のための先行設計', categoryColor: '#FCD34D' }, // 黄（試作品）9001-9999
+    'S000番台': { min: 1, max: 999, pattern: 'S', description: '先行手配(製造管理部が手配。後で正規工番に振替える。)', categoryColor: '#06B6D4' }, // シアン（先行手配）S001-S999
+    'Z000番台': { min: 1, max: 999, pattern: 'Z', description: '出荷後無償手配→有償に変更', categoryColor: '#EF4444' }, // 赤（有償変更）Z001-Z999
+    'D000番台': { min: 1, max: 999, pattern: 'D', description: 'ダイセット（オーバーホール、一部組立品）', categoryColor: '#92400E' } // 茶（ダイセット）D001-D999
+};
+
+function getConstructNumberRange(prefix) {
+    return CONSTRUCT_NUMBER_RANGES[prefix] || null;
+}
+
+// 範囲定義のマップを取得（グローバルに公開）
+function getConstructNumberRangeMap() {
+    return CONSTRUCT_NUMBER_RANGES;
+}
+
+// グローバルに公開
+window.getConstructNumberRangeMap = getConstructNumberRangeMap;
+
+// 工事番号採番の修正版関数
 async function getConstructNumber() {
     const selectElement = document.getElementById('construct-number-select');
     const resultInput = document.getElementById('construct-number-result');
     const applyBtn = document.getElementById('apply-construct-number-btn');
+    const selectedPrefix = selectElement.value;
     
-    if (!selectElement.value) {
-        showMessage('工事番号台を選択してください', 'warning');
+    if (!selectedPrefix) {
+        showMessage('工事番号台を選択してください', 'error');
         return;
     }
     
     try {
-        // 工事番号を生成
-        const koujibangou = selectElement.value;
-        await generateNextConstructNumberForModal(koujibangou);
+        const supabase = getSupabaseClient();
+        if (!supabase) {
+            showMessage('Supabaseクライアントが初期化されていません', 'error');
+            return;
+        }
+        
+        // プレフィックスから範囲情報を取得
+        const rangeInfo = getConstructNumberRange(selectedPrefix);
+        if (!rangeInfo) {
+            showMessage('選択された番台の範囲情報が見つかりません', 'error');
+            return;
+        }
+        
+        console.log('Range info:', rangeInfo); // デバッグ用
+        
+        let newNumber;
+        let newNumberStr;
+        
+        // パターンの有無で処理を分岐
+        if (rangeInfo.pattern) {
+            // ========================================
+            // パターンがある場合（S, Z, D, 3A, 4B等）
+            // ========================================
+            
+            // T_ConstructionNumberから取得（複数のカラム名を試行）
+            let patternData1 = [];
+            let patternError1 = null;
+            
+            let result1 = await supabase
+                .from('t_constructionnumber')
+                .select('constructno')
+                .like('constructno', rangeInfo.pattern + '%')
+                .order('constructno', { ascending: false });
+            
+            if (!result1.error && result1.data) {
+                // カラム名を正規化
+                patternData1 = result1.data.map(item => ({ ConstructNo: item.constructno }));
+            } else {
+                patternError1 = result1.error;
+            }
+            
+            if (patternError1) {
+                console.error('T_ConstructionNumber取得エラー:', patternError1);
+            }
+            
+            // t_AcceptOrderから取得（CancelFlgがfalseのもののみ）
+            let patternData2 = [];
+            const tableNames = ['t_acceptorder'];
+            for (const tableName of tableNames) {
+                try {
+                    const { data: data2, error: error2 } = await supabase
+                        .from(tableName)
+                        .select('ConstructNo, CancelFlg')
+                        .like('ConstructNo', rangeInfo.pattern + '%');
+                    
+                    if (!error2 && data2) {
+                        patternData2 = data2.filter(item => !item.CancelFlg && item.ConstructNo);
+                        break;
+                    }
+                } catch (e) {
+                    continue;
+                }
+            }
+            
+            // 両方のデータを結合して重複を除去
+            const allPatternData = [...(patternData1 || []), ...patternData2];
+            const uniquePatternData = [];
+            const seen = new Set();
+            for (const item of allPatternData) {
+                const constructNo = item.ConstructNo || item.ConstructNo;
+                if (constructNo && !seen.has(constructNo)) {
+                    seen.add(constructNo);
+                    uniquePatternData.push({ ConstructNo: constructNo });
+                }
+            }
+            
+            console.log('Pattern data:', uniquePatternData); // デバッグ用
+            
+            // パターンに一致する番号をフィルタリングして数値部分を抽出
+            const existingNumbers = uniquePatternData
+                .map(item => {
+                    if (!item.ConstructNo.startsWith(rangeInfo.pattern)) return null;
+                    const numPart = item.ConstructNo.substring(rangeInfo.pattern.length);
+                    const num = parseInt(numPart);
+                    return !isNaN(num) && num >= rangeInfo.min && num <= rangeInfo.max ? num : null;
+                })
+                .filter(n => n !== null);
+            
+            console.log('Existing numbers (pattern):', existingNumbers); // デバッグ用
+            
+            // 巡回（サイクル）方式：最大値 + 1 を次の番号にする
+            // 途中の歯抜け（空き番号）は無視し、常に最新の続きを出す
+            if (existingNumbers.length > 0) {
+                const maxNumber = Math.max(...existingNumbers);
+                console.log('Pattern - Max number found:', maxNumber); // デバッグ用
+                newNumber = maxNumber + 1;
+                console.log('Pattern - Max number + 1 =', newNumber); // デバッグ用
+                
+                // 範囲を超えた場合のみ最小値に戻る（巡回）
+                if (newNumber > rangeInfo.max) {
+                    newNumber = rangeInfo.min;
+                    showMessage(`範囲の上限を超えたため、${rangeInfo.min}から巡回します`, 'info');
+                }
+            } else {
+                // 既存の番号がない場合は最小値から開始
+                newNumber = rangeInfo.min;
+            }
+            
+            // パターン + 番号で文字列を生成
+            const numDigits = rangeInfo.max.toString().length;
+            newNumberStr = rangeInfo.pattern + newNumber.toString().padStart(numDigits, '0');
+            
+        } else {
+            // ========================================
+            // 数値範囲の場合（1000番台、2000番台等）
+            // ========================================
+            
+            // T_ConstructionNumberから全工事番号を取得
+            const { data: allData1Raw, error: fetchError1 } = await supabase
+                .from('t_constructionnumber')
+                .select('constructno')
+                .order('constructno', { ascending: false });
+            
+            // カラム名を正規化
+            const allData1 = (allData1Raw || []).map(item => ({ ConstructNo: item.constructno }));
+            
+            if (fetchError1) {
+                console.error('T_ConstructionNumber取得エラー:', fetchError1);
+            }
+            
+            console.log('T_ConstructionNumberから取得:', allData1.length, '件'); // デバッグ用
+            if (allData1.length > 0) {
+                console.log('T_ConstructionNumberのサンプル（最初の10件）:', allData1.slice(0, 10).map(item => item.ConstructNo)); // デバッグ用
+            }
+            
+            // t_AcceptOrderから取得（CancelFlgがfalseのもののみ）
+            let allData2 = [];
+            const tableNames = ['t_acceptorder'];
+            for (const tableName of tableNames) {
+                try {
+                    const { data: data2, error: error2 } = await supabase
+                        .from(tableName)
+                        .select('ConstructNo, CancelFlg');
+                    
+                    if (!error2 && data2) {
+                        // CancelFlgがfalseまたはnullのもののみをフィルタリング
+                        const validItems = data2.filter(item => {
+                            const cancelFlg = item.CancelFlg;
+                            return (cancelFlg === false || cancelFlg === null || cancelFlg === undefined) && item.ConstructNo;
+                        });
+                        allData2 = validItems.map(item => ({ ConstructNo: item.ConstructNo }));
+                        console.log(`t_AcceptOrderから取得: ${allData2.length}件 (テーブル: ${tableName})`); // デバッグ用
+                        console.log(`t_AcceptOrderのサンプル:`, allData2.slice(0, 5).map(item => item.ConstructNo)); // デバッグ用
+                        break;
+                    } else if (error2) {
+                        console.warn(`${tableName}からの取得エラー:`, error2);
+                    }
+                } catch (e) {
+                    console.warn(`${tableName}からの取得で例外:`, e);
+                    continue;
+                }
+            }
+            
+            console.log('T_ConstructionNumberから取得:', allData1 ? allData1.length : 0, '件'); // デバッグ用
+            console.log('t_AcceptOrderから取得:', allData2.length, '件'); // デバッグ用
+            
+            // 両方のデータを結合して重複を除去
+            const allData = [...(allData1 || []), ...allData2];
+            const uniqueData = [];
+            const seen = new Set();
+            for (const item of allData) {
+                const constructNo = item.ConstructNo;
+                if (constructNo && !seen.has(constructNo)) {
+                    seen.add(constructNo);
+                    uniqueData.push({ ConstructNo: constructNo });
+                }
+            }
+            
+            console.log('結合後のユニークデータ数:', uniqueData.length); // デバッグ用
+            console.log('結合後のデータ（最初の20件）:', uniqueData.slice(0, 20).map(item => item.ConstructNo)); // デバッグ用
+            
+            // 選択されたプレフィックスの範囲を確認（デバッグ用）
+            console.log(`選択されたプレフィックス: ${selectedPrefix}, 範囲: ${rangeInfo.min}～${rangeInfo.max}`); // デバッグ用
+            
+            // 選択された範囲のデータを特に確認（フィルタリング前）
+            const rangeDataBefore = uniqueData.filter(item => {
+                const num = parseInt(item.ConstructNo, 10);
+                return !isNaN(num) && num >= rangeInfo.min && num <= rangeInfo.max;
+            });
+            console.log(`${selectedPrefix}（${rangeInfo.min}～${rangeInfo.max}）のデータ（フィルタリング前）:`, rangeDataBefore.map(item => item.ConstructNo)); // デバッグ用
+            if (rangeDataBefore.length > 0) {
+                const maxInRange = Math.max(...rangeDataBefore.map(item => parseInt(item.ConstructNo, 10)));
+                console.log(`${selectedPrefix}の最大値（フィルタリング前）:`, maxInRange); // デバッグ用
+            } else {
+                console.log(`${selectedPrefix}の範囲内にデータがありません。最小値 ${rangeInfo.min} から開始します。`); // デバッグ用
+            }
+            
+            // 数値としてパースし、範囲内のものだけをフィルタリング
+            // 巡回方式：最大値を探すため、範囲内のすべての数値を抽出
+            const existingNumbers = uniqueData
+                .map(item => {
+                    const constructNo = String(item.ConstructNo || '').trim();
+                    if (!constructNo) return null;
+                    
+                    // 数値としてパース（10進数として扱う）
+                    const num = parseInt(constructNo, 10);
+                    if (isNaN(num)) {
+                        return null;
+                    }
+                    
+                    // 範囲チェック（選択されたプレフィックスの範囲内かどうか）
+                    // 厳密に範囲内かどうかをチェック
+                    if (num >= rangeInfo.min && num <= rangeInfo.max) {
+                        // 1000番台の場合は、数値が正確に1000～1999の範囲内にあることを確認
+                        // 他のプレフィックス（例：S1016、3A1016など）が誤って含まれないように
+                        if (selectedPrefix === '1000番台') {
+                            // 1000番台は純粋な数値のみ（文字列の長さもチェック）、1001-1999の範囲
+                            if (constructNo.length <= 4 && num >= 1001 && num <= 1999) {
+                                console.log(`[${selectedPrefix}] 範囲内の数値として認識: ${constructNo} (${num})`); // デバッグ用
+                                return num;
+                            } else {
+                                console.log(`[${selectedPrefix}] 範囲外として除外: ${constructNo} (${num}) - 長さ: ${constructNo.length}`); // デバッグ用
+                                return null;
+                            }
+                        } else {
+                            console.log(`[${selectedPrefix}] 範囲内の数値として認識: ${constructNo} (${num})`); // デバッグ用
+                            return num;
+                        }
+                    } else {
+                        // 範囲外の場合は無視
+                        return null;
+                    }
+                })
+                .filter(n => n !== null && typeof n === 'number');
+            
+            console.log(`[${selectedPrefix}] 範囲内の数値（最終）:`, existingNumbers.sort((a, b) => a - b)); // デバッグ用（ソート済み）
+            console.log(`[${selectedPrefix}] 範囲: ${rangeInfo.min} - ${rangeInfo.max}`); // デバッグ用
+            
+            // 巡回（サイクル）方式：最大値 + 1 を次の番号にする
+            // 途中の歯抜け（空き番号）は無視し、常に最新の続きを出す
+            if (existingNumbers.length > 0) {
+                const maxNumber = Math.max(...existingNumbers);
+                console.log(`[${selectedPrefix}] 最大値: ${maxNumber}`); // デバッグ用
+                console.log(`[${selectedPrefix}] 最大値 + 1 = ${maxNumber + 1}`); // デバッグ用
+                console.log(`[${selectedPrefix}] 範囲内の全数値:`, existingNumbers); // デバッグ用（全数値を表示）
+                
+                // 最大値が範囲内にあることを確認
+                if (maxNumber < rangeInfo.min || maxNumber > rangeInfo.max) {
+                    console.warn(`[${selectedPrefix}] 警告: 最大値 ${maxNumber} が範囲外です。最小値 ${rangeInfo.min} から開始します。`);
+                    newNumber = rangeInfo.min;
+                } else {
+                    newNumber = maxNumber + 1;
+                    
+                    // 範囲を超えた場合のみ最小値に戻る（巡回）
+                    // VB.NETコードに基づく巡回ロジック
+                    if (newNumber > rangeInfo.max) {
+                        // 各番台の巡回開始番号を設定
+                        if (selectedPrefix === '1000番台' && maxNumber >= 1999) {
+                            newNumber = 1001;
+                        } else if (selectedPrefix === '2000番台' && maxNumber >= 2899) {
+                            newNumber = 2001;
+                        } else if (selectedPrefix === '2900番台' && maxNumber >= 2999) {
+                            newNumber = 2901;
+                        } else if (selectedPrefix === '3000番台' && maxNumber >= 3899) {
+                            newNumber = 3001;
+                        } else if (selectedPrefix === '4000番台' && maxNumber >= 4899) {
+                            newNumber = 4001;
+                        } else if (selectedPrefix === '5000番台' && maxNumber >= 5999) {
+                            newNumber = 5001;
+                        } else if (selectedPrefix === '6000番台' && maxNumber >= 6999) {
+                            newNumber = 6001;
+                        } else if (selectedPrefix === '7000番台' && maxNumber >= 7999) {
+                            newNumber = 7001;
+                        } else if (selectedPrefix === '8000番台' && maxNumber >= 8999) {
+                            newNumber = 8001;
+                        } else if (selectedPrefix === '9000番台' && maxNumber >= 9999) {
+                            newNumber = 9001;
+                        } else {
+                            newNumber = rangeInfo.min;
+                        }
+                        showMessage(`範囲の上限を超えたため、${newNumber}から巡回します`, 'info');
+                    }
+                }
+            } else {
+                // 既存の番号がない場合は最小値から開始
+                console.log(`[${selectedPrefix}] 範囲内にデータがありません。最小値 ${rangeInfo.min} から開始します。`); // デバッグ用
+                newNumber = rangeInfo.min;
+            }
+            
+            console.log(`[${selectedPrefix}] 生成される番号: ${newNumber}`); // デバッグ用
+            
+            // 数値のみの文字列
+            newNumberStr = newNumber.toString();
+        }
+        
+        console.log('Generated number:', newNumberStr); // デバッグ用
+        
+        // 生成された番号が既に使用されていないか確認
+        // T_ConstructionNumberとt_AcceptOrderの両方をチェック
+        let isUsed = false;
+        
+        // T_ConstructionNumberをチェック
+        const { data: checkData1, error: checkError1 } = await supabase
+            .from('t_constructionnumber')
+            .select('constructno')
+            .eq('constructno', newNumberStr)
+            .limit(1);
+        
+        if (!checkError1 && checkData1 && checkData1.length > 0) {
+            isUsed = true;
+        }
+        
+        // t_AcceptOrderをチェック（CancelFlgがfalseのもののみ）
+        if (!isUsed) {
+            for (const tableName of ['t_acceptorder']) {
+                try {
+                    const { data: checkData2, error: checkError2 } = await supabase
+                        .from(tableName)
+                        .select('ConstructNo, CancelFlg')
+                        .eq('ConstructNo', newNumberStr)
+                        .limit(1);
+                    
+                    if (!checkError2 && checkData2 && checkData2.length > 0) {
+                        const validOrder = checkData2.find(item => !item.CancelFlg);
+                        if (validOrder) {
+                            isUsed = true;
+                            break;
+                        }
+                    }
+                } catch (e) {
+                    continue;
+                }
+            }
+        }
+        
+        if (isUsed) {
+            showMessage(`番号 ${newNumberStr} は既に使用されています。再度お試しください。`, 'error');
+            return;
+        }
         
         // 結果を表示
-        const resultValue = resultInput.value;
-        if (resultValue) {
-            // 工事番号が取得されたら自動的に確認ポップアップを表示
-            applyBtn.style.display = 'inline-block';
-            // 自動的に確認ポップアップを表示
-            setTimeout(() => {
-                applyConstructNumber();
-            }, 300);
-        } else {
-            showMessage('工事番号の取得に失敗しました', 'error');
+        if (resultInput) {
+            resultInput.value = newNumberStr;
         }
+        
+        // データベースに保存（orderdateは今日の日付）
+        const today = new Date().toISOString().split('T')[0];
+        const { error: insertError } = await supabase
+            .from('t_constructionnumber')
+            .insert([{
+                constructno: newNumberStr,
+                orderdate: today
+            }]);
+        
+        if (insertError) {
+            console.error('Insert error:', insertError);
+            // 重複エラーの場合は無視
+            if (insertError.code !== '23505') {
+                showMessage('データベースへの保存に失敗しました', 'error');
+                return;
+            }
+        }
+        
+        // 「取得しました」メッセージは表示しない（確認モーダルで確認するため）
+        // showMessage(`工事番号 ${newNumberStr} を取得しました`, 'success');
+        
+        // 使用済み一覧を更新
+        if (typeof loadUsedConstructNumbersListInline === 'function') {
+            await loadUsedConstructNumbersListInline(selectedPrefix);
+        }
+        
+        // モーダルの場合は適用ボタンを表示（ページ版では自動的に確認モーダルを表示するため、ここでは呼び出さない）
+        if (applyBtn) {
+            applyBtn.style.display = 'inline-block';
+            // ページ版では自動的に確認ポップアップを表示するため、ここでは呼び出さない
+            // setTimeout(() => {
+            //     if (typeof applyConstructNumber === 'function') {
+            //         applyConstructNumber();
+            //     }
+            // }, 300);
+        }
+        
     } catch (error) {
-        console.error('工事番号取得エラー:', error);
-        showMessage('工事番号の取得に失敗しました', 'error');
+        console.error('Error:', error);
+        showMessage('エラーが発生しました: ' + (error.message || '不明なエラー'), 'error');
     }
 }
 
@@ -7646,9 +11126,7 @@ async function generateNextConstructNumberForModal(koujibangou, resultInputEleme
             prefix1 = koujiValue;
         }
         
-        let maxNumber = null;
-        
-        // テーブル名を確認
+        // テーブル名を確認（古いロジックは削除）
         const tableName = currentTable || 't Accept Order';
         
         // 工事番号カラム名を推測
@@ -7664,192 +11142,196 @@ async function generateNextConstructNumberForModal(koujibangou, resultInputEleme
             constructNoColumn = 'Construct No';
         }
         
-        // データベースから該当する工事番号の最大値を取得
+        // 範囲情報を取得（getConstructNumberRangeを使用）
+        const rangeInfo = getConstructNumberRange(koujibangou);
+        if (!rangeInfo) {
+            console.error(`範囲情報が見つかりません: ${koujibangou}`);
+            showMessage(`範囲情報が見つかりません: ${koujibangou}`, 'error');
+            return;
+        }
+        
+        console.log(`[${koujibangou}] 範囲情報:`, rangeInfo);
+        
+        // t_constructionnumberとt_acceptorderから直接取得（範囲チェック付き）
         const supabase = getSupabaseClient();
         if (!supabase) {
             console.error('Supabaseクライアントが初期化されていません');
-        }
-        const { data, error } = supabase ? await supabase
-            .from(tableName)
-            .select(constructNoColumn)
-            .not(constructNoColumn, 'is', null)
-            .limit(10000) : { data: null, error: new Error('Supabaseクライアントが初期化されていません') };
-        
-        if (error) {
-            console.error('工事番号取得エラー(Supabase):', error);
-            // Supabaseエラー時でも処理を続行し、使用済み番号一覧を確認するようにする
+            showMessage('Supabaseクライアントが初期化されていません', 'error');
+            return;
         }
         
-        // 使用済み番号を取得
-        const usedNumbers = await getUsedConstructNumbers();
+        // t_constructionnumberから取得
+        let data1 = [];
         
-        // 選択された工事番号台に該当する最大値を探す（データベース + 使用済み番号）
+        const { data: result1, error: error1 } = await supabase
+            .from('t_constructionnumber')
+            .select('constructno');
+        
+        if (!error1 && result1) {
+            // カラム名を正規化
+            data1 = result1.map(item => ({ ConstructNo: item.constructno }));
+        } else if (error1) {
+            console.warn('t_constructionnumber取得エラー:', error1);
+        }
+        
+        console.log(`[${koujibangou}] t_constructionnumberから取得: ${data1.length}件`);
+        if (data1.length > 0) {
+            console.log(`[${koujibangou}] t_constructionnumberのサンプル:`, data1.slice(0, 10).map(item => item.ConstructNo));
+        }
+        
+        // t_acceptorderから取得（CancelFlgがfalseのもののみ）
+        let data2 = [];
+        try {
+            const { data: orders, error: error2 } = await supabase
+                .from('t_acceptorder')
+                .select('ConstructNo, CancelFlg')
+                .or('CancelFlg.is.null,CancelFlg.eq.false');
+            
+            if (!error2 && orders) {
+                data2 = orders.map(item => ({ ConstructNo: item.ConstructNo }));
+            }
+        } catch (e) {
+            console.warn('t_acceptorder取得エラー:', e);
+        }
+        
+        console.log(`[${koujibangou}] t_acceptorderから取得: ${data2.length}件`);
+        
+        // すべての工事番号を結合（重複除去）
+        const allData = [...(data1 || []), ...data2];
+        const uniqueData = [];
+        const seen = new Set();
+        for (const item of allData) {
+            const constructNo = String(item.ConstructNo || '').trim();
+            if (constructNo && !seen.has(constructNo)) {
+                seen.add(constructNo);
+                uniqueData.push({ ConstructNo: constructNo });
+            }
+        }
+        
+        console.log(`[${koujibangou}] 結合後のユニークデータ数: ${uniqueData.length}件`);
+        if (uniqueData.length > 0) {
+            console.log(`[${koujibangou}] 結合後のデータサンプル:`, uniqueData.slice(0, 20).map(item => item.ConstructNo));
+        }
+        
+        // 範囲内の番号のみをフィルタリング
+        // どの工事番号台であっても、登録されている工事番号の最大値+1を取得する
         const allNumbers = [];
         
-        // データベースから取得した番号を追加
-        if (data && data.length > 0) {
-            data.forEach(row => {
-                const value = row[constructNoColumn];
-                if (!value) return;
-                const strValue = String(value).trim();
-                
-                // プレフィックスでマッチング
-                if (prefix1 && /^[A-Z]$/.test(prefix1)) {
-                    if (strValue.startsWith(prefix1)) {
-                        allNumbers.push(strValue);
-                    }
-                } else if (prefix) {
-                    if (strValue.startsWith(prefix)) {
-                        allNumbers.push(strValue);
+        for (const item of uniqueData) {
+            const constructNo = String(item.ConstructNo || '').trim();
+            if (!constructNo) continue;
+            
+            let matches = false;
+            
+            if (rangeInfo.pattern) {
+                // パターンベース（S, Z, D, 3Aなど）
+                if (constructNo.startsWith(rangeInfo.pattern)) {
+                    const numPart = constructNo.substring(rangeInfo.pattern.length);
+                    const num = parseInt(numPart, 10);
+                    if (!isNaN(num) && num >= rangeInfo.min && num <= rangeInfo.max) {
+                        matches = true;
                     }
                 }
-            });
-        }
-        
-        // 使用済み番号を追加
-        console.log('工事番号採番(モーダル) - 使用済み番号:', usedNumbers);
-        console.log('工事番号採番(モーダル) - プレフィックス:', prefix || prefix1, 'prefix:', prefix, 'prefix1:', prefix1, 'koujiValue:', koujiValue);
-        usedNumbers.forEach(usedItem => {
-            const usedNum = typeof usedItem === 'string' ? usedItem : usedItem.number;
-            const strValue = String(usedNum).trim();
-            let shouldAdd = false;
-            
-            console.log('工事番号採番(モーダル) - 使用済み番号をチェック:', strValue, 'prefix:', prefix, 'prefix1:', prefix1);
-            
-            if (prefix1 && /^[A-Z]$/.test(prefix1)) {
-                // 1文字アルファベット（S, T, Z, D）
-                if (strValue.startsWith(prefix1)) {
-                    shouldAdd = true;
-                    console.log('工事番号採番(モーダル) - アルファベットプレフィックスでマッチ:', strValue);
-                }
-            } else if (prefix) {
-                // 2文字プレフィックス（10, 3B, 3C, 4B, 4Cなど）
-                if (strValue.startsWith(prefix)) {
-                    shouldAdd = true;
-                    console.log('工事番号採番(モーダル) - 2文字プレフィックスでマッチ:', strValue, 'prefix:', prefix);
-                } else {
-                    console.log('工事番号採番(モーダル) - プレフィックスでマッチしませんでした:', strValue, 'prefix:', prefix);
-                }
-            } else if (prefix1 && !prefix) {
-                // prefixが空でprefix1のみの場合（例：1000番台でprefix1='1'の場合）
-                // 数字のみの番号の場合、prefix1で始まる番号を追加
-                if (strValue.startsWith(prefix1)) {
-                    shouldAdd = true;
-                    console.log('工事番号採番(モーダル) - prefix1でマッチ:', strValue);
-                }
-            }
-            
-            if (shouldAdd && !allNumbers.includes(strValue)) {
-                allNumbers.push(strValue);
-                console.log('工事番号採番(モーダル) - 使用済み番号を追加:', strValue);
-            } else if (shouldAdd) {
-                console.log('工事番号採番(モーダル) - 使用済み番号は既に存在:', strValue);
-            }
-        });
-        console.log('工事番号採番(モーダル) - 追加後のallNumbers:', allNumbers, '件数:', allNumbers.length);
-        
-        // 最大値を計算（VB.NETのロジックに従って、使用済み番号を含めた最大値を見つける）
-        if (allNumbers.length > 0) {
-            console.log('工事番号採番(モーダル) - 対象番号一覧:', allNumbers);
-            
-            // 各番号から数値部分を抽出して比較用のオブジェクトを作成
-            const numberPairs = allNumbers.map(num => {
-                const strValue = String(num).trim();
-                let numPart = '';
-                let numValue = 0;
-                
-                if (/^\d+$/.test(strValue)) {
-                    // 数字のみの番号（例：1001, 2001）
-                    numPart = strValue;
-                    numValue = parseInt(strValue, 10);
-                } else {
-                    // アルファベットを含む番号（例：3B01, 3C01, S001）
-                    if (prefix1 && /^[A-Z]$/.test(prefix1)) {
-                        // 1文字アルファベット（S, T, Z, D）
-                        numPart = strValue.substring(1);
-                    } else if (prefix && prefix.length === 2) {
-                        // 2文字プレフィックス（3B, 3C, 4Bなど）
-                        numPart = strValue.substring(2);
-                    }
-                    
-                    if (numPart && /^\d+$/.test(numPart)) {
-                        numValue = parseInt(numPart, 10);
+            } else {
+                // 数値範囲（1000番台、2000番台など）
+                const num = parseInt(constructNo, 10);
+                if (!isNaN(num)) {
+                    // 1000番台の場合は、純粋な数値のみ（文字列の長さもチェック）、1001-1999の範囲
+                    if (koujibangou === '1000番台') {
+                        // 1000番台は1001-1999の範囲、かつ4文字以下の数値のみ
+                        if (constructNo.length <= 4 && num >= 1001 && num <= 1999) {
+                            matches = true;
+                        }
                     } else {
-                        // 数値部分が抽出できない場合は、文字列として扱う
-                        numValue = 0;
+                        // その他の番台は、範囲内であればOK
+                        if (num >= rangeInfo.min && num <= rangeInfo.max) {
+                            matches = true;
+                        }
                     }
+                }
+            }
+            
+            if (matches && !allNumbers.includes(constructNo)) {
+                allNumbers.push(constructNo);
+                console.log(`[${koujibangou}] 範囲内の番号として追加: ${constructNo}`);
+            }
+        }
+        
+        // デバッグ: フィルタリング後の番号一覧を表示
+        console.log(`[${koujibangou}] フィルタリング後の番号一覧:`, allNumbers.sort((a, b) => {
+            const numA = parseInt(a, 10);
+            const numB = parseInt(b, 10);
+            if (!isNaN(numA) && !isNaN(numB)) {
+                return numA - numB;
+            }
+            return a.localeCompare(b);
+        }));
+        
+        console.log(`[${koujibangou}] 範囲内の番号一覧:`, allNumbers);
+        console.log(`[${koujibangou}] 範囲内の番号数:`, allNumbers.length);
+        
+        // 巡回方式：範囲内の最大値 + 1 を次の番号にする
+        console.log(`[${koujibangou}] 範囲内の番号一覧:`, allNumbers);
+        
+        let maxNumber = null;
+        let nextNumber = null;
+        
+        if (allNumbers.length > 0) {
+            // 範囲内の番号から最大値を取得
+            const numericNumbers = allNumbers
+                .map(constructNo => {
+                    let num;
+                    if (rangeInfo.pattern) {
+                        const numPart = constructNo.substring(rangeInfo.pattern.length);
+                        num = parseInt(numPart, 10);
+                    } else {
+                        num = parseInt(constructNo, 10);
+                    }
+                    return { num, constructNo };
+                })
+                .filter(item => !isNaN(item.num))
+                .sort((a, b) => b.num - a.num);
+            
+            if (numericNumbers.length > 0) {
+                maxNumber = numericNumbers[0].constructNo;
+                const maxNum = numericNumbers[0].num;
+                console.log(`[${koujibangou}] 最大値: ${maxNumber} (数値: ${maxNum})`);
+                
+                // 最大値 + 1 を計算
+                let newNum = maxNum + 1;
+                
+                // 範囲を超えた場合のみ最小値に戻る（巡回）
+                if (newNum > rangeInfo.max) {
+                    newNum = rangeInfo.min;
+                    console.log(`[${koujibangou}] 範囲の上限を超えたため、最小値 ${rangeInfo.min} から巡回します`);
                 }
                 
-                return {
-                    original: strValue,
-                    numPart: numPart,
-                    numValue: numValue
-                };
-            });
-            
-            // 数値部分でソートして最大値を見つける
-            numberPairs.sort((a, b) => {
-                if (a.numValue !== b.numValue) {
-                    return b.numValue - a.numValue; // 降順
+                // 次の番号を生成
+                if (rangeInfo.pattern) {
+                    const numDigits = rangeInfo.max.toString().length;
+                    nextNumber = rangeInfo.pattern + newNum.toString().padStart(numDigits, '0');
+                } else {
+                    nextNumber = newNum.toString();
                 }
-                // 数値が同じ場合は文字列として比較
-                return b.original.localeCompare(a.original);
-            });
-            
-            // 最大値の元の番号を取得
-            maxNumber = numberPairs[0].original;
-            console.log('工事番号採番(モーダル) - 最大値:', maxNumber, 'プレフィックス:', prefix || prefix1);
+            }
         } else {
-            console.log('工事番号採番(モーダル) - 対象番号なし、デフォルト値を使用');
-            // 使用済み番号が空でも、データベースから取得した番号がある場合はそれを使用
-            if (data && data.length > 0) {
-                console.log('工事番号採番(モーダル) - データベースから取得した番号を使用');
-            }
-        }
-        
-        // 次の番号を生成（VB.NETのロジック: retに最大値を渡して+1）
-        console.log('工事番号採番(モーダル) - calculateNextConstructNumber呼び出し前:', { koujibangou, maxNumber, prefix, prefix1, allNumbersLength: allNumbers.length });
-        
-        // maxNumberがnullの場合でも、使用済み番号から最大値を再計算
-        if (!maxNumber && usedNumbers.length > 0) {
-            console.warn('工事番号採番(モーダル) - maxNumberがnullのため、使用済み番号から最大値を再計算');
-            const filteredUsed = usedNumbers
-                .map(item => typeof item === 'string' ? item : item.number)
-                .map(num => String(num).trim())
-                .filter(num => {
-                    if (prefix1 && /^[A-Z]$/.test(prefix1)) {
-                        return num.startsWith(prefix1);
-                    } else if (prefix) {
-                        return num.startsWith(prefix);
-                    }
-                    return false;
-                });
+            // 範囲内にデータがない場合は最小値から開始
+            console.log(`[${koujibangou}] 範囲内にデータがありません。最小値 ${rangeInfo.min} から開始します。`);
             
-            if (filteredUsed.length > 0) {
-                // 数値としてソートして最大値を取得
-                const sorted = filteredUsed.sort((a, b) => {
-                    const numA = parseInt(a, 10) || 0;
-                    const numB = parseInt(b, 10) || 0;
-                    return numB - numA;
-                });
-                maxNumber = sorted[0];
-                console.log('工事番号採番(モーダル) - 使用済み番号から取得した最大値:', maxNumber);
+            if (rangeInfo.pattern) {
+                const numDigits = rangeInfo.max.toString().length;
+                nextNumber = rangeInfo.pattern + rangeInfo.min.toString().padStart(numDigits, '0');
+            } else {
+                nextNumber = rangeInfo.min.toString();
             }
         }
         
-        let nextNumber = calculateNextConstructNumber(koujibangou, maxNumber);
-        console.log('工事番号採番(モーダル) - 生成された次の番号:', nextNumber);
-        
-        // nextNumberがnullの場合はデフォルト値を試す
-        if (!nextNumber) {
-            console.warn('工事番号採番(モーダル) - 最大値からの生成に失敗、デフォルト値を試行');
-            nextNumber = calculateNextConstructNumber(koujibangou, null);
-        }
+        console.log(`[${koujibangou}] 生成される次の番号: ${nextNumber}`);
         
         if (nextNumber) {
             resultInput.value = nextNumber;
         } else {
-            console.error('工事番号採番(モーダル) - 次の番号の生成に失敗しました');
+            console.error(`[${koujibangou}] 次の番号の生成に失敗しました`);
             showMessage('工事番号の生成に失敗しました。工事番号台を確認してください。', 'error');
         }
     } catch (error) {
@@ -7865,22 +11347,66 @@ async function generateNextConstructNumberForModal(koujibangou, resultInputEleme
 
 // 取得した工事番号を登録フォームに適用
 function applyConstructNumber() {
+    // 工事番号採番モーダルが開いているか確認
+    const constructNumberModal = document.getElementById('construct-number-modal');
+    if (!constructNumberModal || constructNumberModal.style.display === 'none') {
+        console.warn('工事番号採番モーダルが開いていないため、確認モーダルを表示しません');
+        return;
+    }
+    
     const resultInput = document.getElementById('construct-number-result');
     
-    if (!resultInput || !resultInput.value) {
+    if (!resultInput || !resultInput.value || resultInput.value.trim() === '') {
         showMessage('工事番号が取得されていません', 'warning');
         return;
     }
     
     // カスタム確認モーダルを表示
-    const constructNumber = resultInput.value;
+    const constructNumber = resultInput.value.trim();
+    if (!constructNumber) {
+        return;
+    }
+    
     const confirmModal = document.getElementById('construct-number-confirm-modal');
     const confirmMessage = document.getElementById('construct-number-confirm-message');
     const confirmValue = document.getElementById('construct-number-confirm-value');
     
     if (confirmModal && confirmMessage && confirmValue) {
+        // 再度、工事番号採番モーダルが開いているか確認
+        const currentConstructNumberModal = document.getElementById('construct-number-modal');
+        if (!currentConstructNumberModal || currentConstructNumberModal.style.display === 'none') {
+            console.warn('工事番号採番モーダルが開いていないため、確認モーダルを表示しません');
+            return;
+        }
+        
+        // モーダルが既に表示されている場合は何もしない
+        const currentDisplay = confirmModal.style.display || window.getComputedStyle(confirmModal).display;
+        if (currentDisplay === 'flex') {
+            return;
+        }
+        
+        // ダッシュボードページが表示されていないことを最終確認
+        const dashboardPage = document.getElementById('dashboard-page');
+        if (dashboardPage && dashboardPage.classList.contains('active')) {
+            console.warn('ダッシュボードページが表示されているため、モーダルを表示しません');
+            return;
+        }
+        
+        // ダッシュボードページが表示されていないことを最終確認（もう一度）
+        const finalDashboardCheck = document.getElementById('dashboard-page');
+        if (finalDashboardCheck && finalDashboardCheck.classList.contains('active')) {
+            console.warn('ダッシュボードページが表示されているため、モーダルを表示しません（最終確認）');
+            return;
+        }
+        
         confirmValue.textContent = constructNumber;
-        confirmModal.style.display = 'flex';
+        confirmModal.removeAttribute('hidden');
+        confirmModal.classList.add('modal-active');
+        confirmModal.style.setProperty('display', 'flex', 'important');
+        confirmModal.style.setProperty('visibility', 'visible', 'important');
+        confirmModal.style.setProperty('opacity', '1', 'important');
+        confirmModal.style.setProperty('pointer-events', 'auto', 'important');
+        confirmModal.style.setProperty('z-index', '30000', 'important');
         
         // イベントリスナーを設定（既存のものを削除してから追加）
         const okBtn = document.getElementById('construct-number-confirm-ok');
@@ -7900,25 +11426,42 @@ function applyConstructNumber() {
             try {
                 const modalSelect = document.getElementById('construct-number-select');
                 
-                // この時点で使用済みとして記録
+                // この時点で使用済みとして記録（t_constructionnumberテーブルに保存）
                 const today = new Date().toISOString().split('T')[0];
                 console.log('使用済み番号を保存します:', constructNumber, today);
-                await saveUsedConstructNumber(constructNumber, today);
-                console.log('使用済み番号を保存しました');
                 
-                // 使用済み一覧を更新
-                if (modalSelect && modalSelect.value) {
-                    await loadUsedConstructNumbersListInline(modalSelect.value || null);
+                // t_constructionnumberテーブルに保存
+                const saved = await saveUsedConstructNumberToTable(constructNumber, today);
+                if (saved) {
+                    console.log('✓ t_constructionnumberテーブルに保存しました:', constructNumber);
+                    
+                    // ローカルストレージにも保存（既存の処理）
+                    await saveUsedConstructNumber(constructNumber, today);
+                    console.log('ローカルストレージに保存しました');
+                    
+                    // 使用済み一覧を更新
+                    if (modalSelect && modalSelect.value) {
+                        await loadUsedConstructNumbersListInline(modalSelect.value || null);
+                    } else {
+                        await loadUsedConstructNumbersListInline(null);
+                    }
+                    console.log('使用済み一覧を更新しました');
+                    
+                    // モーダルの内容を成功メッセージに書き換え
+                    showConstructionNumberResultModal(
+                        constructNumber,
+                        true,
+                        `工事番号「${constructNumber}」を登録しました`
+                    );
                 } else {
-                    await loadUsedConstructNumbersListInline(null);
+                    console.error('✗ t_constructionnumberテーブルへの保存に失敗しました:', constructNumber);
+                    // モーダルの内容をエラーメッセージに書き換え
+                    showConstructionNumberResultModal(
+                        constructNumber,
+                        false,
+                        `工事番号「${constructNumber}」の登録に失敗しました。コンソールを確認してください。`
+                    );
                 }
-                console.log('使用済み一覧を更新しました');
-                
-                // 確認モーダルを閉じる
-                confirmModal.style.display = 'none';
-                
-                // 工事番号採番モーダルは閉じない（✖ボタンで閉じるまで開いたまま）
-                showMessage(`工事番号「${constructNumber}」を使用済みとして記録しました`, 'success');
             } catch (error) {
                 console.error('工事番号適用エラー:', error);
                 console.error('エラー詳細:', {
@@ -7926,8 +11469,12 @@ function applyConstructNumber() {
                     stack: error.stack,
                     name: error.name
                 });
-                showMessage('工事番号の適用に失敗しました: ' + (error.message || '不明なエラー'), 'error');
-                confirmModal.style.display = 'none';
+                // モーダルの内容をエラーメッセージに書き換え
+                showConstructionNumberResultModal(
+                    constructNumber,
+                    false,
+                    '工事番号の登録に失敗しました: ' + (error.message || '不明なエラー')
+                );
             }
             
             return false;
@@ -7936,6 +11483,7 @@ function applyConstructNumber() {
         newCancelBtn.addEventListener('click', (e) => {
             e.preventDefault();
             e.stopPropagation();
+            confirmModal.classList.remove('modal-active');
             confirmModal.style.display = 'none';
             return false;
         });
@@ -8174,43 +11722,68 @@ async function deleteUsedConstructNumber(itemId) {
     }
 }
 
-// 使用済み工事番号をCSV出力
+// 使用済み工事番号をCSV出力（テーブル対応版）
 async function exportUsedConstructNumbers() {
-    const usedNumbers = await getUsedConstructNumbers();
-    
-    if (usedNumbers.length === 0) {
-        showMessage('出力するデータがありません', 'warning');
-        return;
-    }
-    
-    // CSVヘッダー
-    let csv = '工事番号,日付,種別\n';
-    
-    // データ
-    usedNumbers.forEach(item => {
-        const num = typeof item === 'string' ? item : item.number;
-        const date = typeof item === 'string' ? '' : (item.registerDate || item.date || '');
-        const type = typeof item === 'string' ? '採番' : (item.type || '採番');
+    try {
+        const supabase = getSupabaseClient();
+        if (!supabase) {
+            showMessage('Supabaseクライアントが初期化されていません', 'error');
+            return;
+        }
+
+        // テーブルからデータを取得
+        const { data: tableData, error: tableError } = await supabase
+            .from('t_constructionnumber')
+            .select('constructno, orderdate')
+            .order('orderdate', { ascending: false });
+
+        if (tableError) {
+            console.error('テーブルからのデータ取得エラー:', tableError);
+            showMessage('データの取得に失敗しました', 'error');
+            return;
+        }
+
+        if (!tableData || tableData.length === 0) {
+            showMessage('出力するデータがありません', 'warning');
+            return;
+        }
         
-        csv += `${num},${date},${type}\n`;
-    });
-    
-    // ダウンロード
-    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    const url = URL.createObjectURL(blob);
-    link.setAttribute('href', url);
-    link.setAttribute('download', `運用中工事番号一覧_${new Date().toISOString().split('T')[0]}.csv`);
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    
-    showMessage('CSVファイルを出力しました', 'success');
+        // CSVヘッダー
+        let csv = '工事番号,日付\n';
+        
+        // データ
+        tableData.forEach(item => {
+            const num = item.constructno || '';
+            const date = item.orderdate ? new Date(item.orderdate).toISOString().split('T')[0] : '';
+            
+            csv += `${num},${date}\n`;
+        });
+        
+        // ダウンロード
+        const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        const url = URL.createObjectURL(blob);
+        link.setAttribute('href', url);
+        link.setAttribute('download', `運用中工事番号一覧_${new Date().toISOString().split('T')[0]}.csv`);
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        
+        showMessage('CSVファイルを出力しました', 'success');
+    } catch (error) {
+        console.error('エクスポートエラー:', error);
+        showMessage('CSVファイルの出力に失敗しました', 'error');
+    }
 }
 
-// 使用済み工事番号をCSVインポート
+// 使用済み工事番号をCSVインポート（テーブル対応版）
 async function importUsedConstructNumbersCSV() {
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+        showMessage('Supabaseクライアントが初期化されていません', 'error');
+        return;
+    }
     
     const input = document.createElement('input');
     input.type = 'file';
@@ -8236,18 +11809,16 @@ async function importUsedConstructNumbersCSV() {
             const errors = [];
             
             dataLines.forEach((line, index) => {
-                const parts = line.split(',').map(p => p.trim());
+                const parts = line.split(',').map(p => p.trim().replace(/^"|"$/g, ''));
                 if (parts.length >= 1 && parts[0]) {
                     const num = parts[0];
                     const date = parts[1] || new Date().toISOString().split('T')[0];
-                    const type = parts[2] || '採番';
                     
                     // バリデーション
                     if (num && num.length > 0) {
                         imported.push({
-                            number: num,
-                            date: date,
-                            type: type
+                            constructno: num,
+                            orderdate: date
                         });
                     } else {
                         errors.push(`行 ${index + 2}: 工事番号が空です`);
@@ -8260,15 +11831,21 @@ async function importUsedConstructNumbersCSV() {
                 return;
             }
             
-            // 既存データとマージ
-            const existing = await getUsedConstructNumbers();
-            const existingNumbers = new Set(existing.map(item => {
-                const num = typeof item === 'string' ? item : item.number;
-                return num;
-            }));
+            // 既存データを取得して重複チェック
+            const { data: existingData, error: fetchError } = await supabase
+                .from('t_constructionnumber')
+                .select('constructno');
             
-            // 重複をチェック
-            const newItems = imported.filter(item => !existingNumbers.has(item.number));
+            if (fetchError) {
+                console.error('既存データ取得エラー:', fetchError);
+                showMessage('既存データの取得に失敗しました', 'error');
+                return;
+            }
+            
+            const existingNumbers = new Set((existingData || []).map(item => item.constructno));
+            
+            // 重複をチェック（インポートデータのキーを小文字に変換）
+            const newItems = imported.filter(item => !existingNumbers.has(item.constructno));
             const duplicates = imported.length - newItems.length;
             
             if (newItems.length === 0) {
@@ -8276,16 +11853,27 @@ async function importUsedConstructNumbersCSV() {
                 return;
             }
             
-            // 既存データに追加
-            const merged = [...existing, ...newItems];
-            localStorage.setItem('used_construct_numbers', JSON.stringify(merged));
+            // テーブルに一括挿入
+            const { error: insertError } = await supabase
+                .from('t_constructionnumber')
+                .insert(newItems);
             
-            await loadUsedConstructNumbersList();
-            const selectElement = document.getElementById('construct-number-select');
-            await loadUsedConstructNumbersListInline(selectElement ? selectElement.value : null);
-            // ページ版の一覧も更新
+            if (insertError) {
+                console.error('テーブルへの挿入エラー:', insertError);
+                showMessage('データのインポートに失敗しました', 'error');
+                return;
+            }
+            
+            // 一覧を更新
             const pageSelectElement = document.getElementById('construct-number-select-page');
-            await loadUsedConstructNumbersListPage(pageSelectElement ? pageSelectElement.value : null);
+            if (pageSelectElement) {
+                await loadUsedConstructNumbersListPage(pageSelectElement.value || null);
+            }
+            
+            // モニターも更新
+            if (typeof loadConstructionNumberStatusPage === 'function') {
+                await loadConstructionNumberStatusPage();
+            }
             
             let message = `${newItems.length}件のデータをインポートしました`;
             if (duplicates > 0) {
@@ -8758,43 +12346,68 @@ async function deleteUsedConstructNumber(itemId) {
     }
 }
 
-// 使用済み工事番号をCSV出力
+// 使用済み工事番号をCSV出力（テーブル対応版）
 async function exportUsedConstructNumbers() {
-    const usedNumbers = await getUsedConstructNumbers();
-    
-    if (usedNumbers.length === 0) {
-        showMessage('出力するデータがありません', 'warning');
-        return;
-    }
-    
-    // CSVヘッダー
-    let csv = '工事番号,日付,種別\n';
-    
-    // データ
-    usedNumbers.forEach(item => {
-        const num = typeof item === 'string' ? item : item.number;
-        const date = typeof item === 'string' ? '' : (item.registerDate || item.date || '');
-        const type = typeof item === 'string' ? '採番' : (item.type || '採番');
+    try {
+        const supabase = getSupabaseClient();
+        if (!supabase) {
+            showMessage('Supabaseクライアントが初期化されていません', 'error');
+            return;
+        }
+
+        // テーブルからデータを取得
+        const { data: tableData, error: tableError } = await supabase
+            .from('t_constructionnumber')
+            .select('constructno, orderdate')
+            .order('orderdate', { ascending: false });
+
+        if (tableError) {
+            console.error('テーブルからのデータ取得エラー:', tableError);
+            showMessage('データの取得に失敗しました', 'error');
+            return;
+        }
+
+        if (!tableData || tableData.length === 0) {
+            showMessage('出力するデータがありません', 'warning');
+            return;
+        }
         
-        csv += `${num},${date},${type}\n`;
-    });
-    
-    // ダウンロード
-    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    const url = URL.createObjectURL(blob);
-    link.setAttribute('href', url);
-    link.setAttribute('download', `運用中工事番号一覧_${new Date().toISOString().split('T')[0]}.csv`);
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    
-    showMessage('CSVファイルを出力しました', 'success');
+        // CSVヘッダー
+        let csv = '工事番号,日付\n';
+        
+        // データ
+        tableData.forEach(item => {
+            const num = item.constructno || '';
+            const date = item.orderdate ? new Date(item.orderdate).toISOString().split('T')[0] : '';
+            
+            csv += `${num},${date}\n`;
+        });
+        
+        // ダウンロード
+        const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        const url = URL.createObjectURL(blob);
+        link.setAttribute('href', url);
+        link.setAttribute('download', `運用中工事番号一覧_${new Date().toISOString().split('T')[0]}.csv`);
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        
+        showMessage('CSVファイルを出力しました', 'success');
+    } catch (error) {
+        console.error('エクスポートエラー:', error);
+        showMessage('CSVファイルの出力に失敗しました', 'error');
+    }
 }
 
-// 使用済み工事番号をCSVインポート
+// 使用済み工事番号をCSVインポート（テーブル対応版）
 async function importUsedConstructNumbersCSV() {
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+        showMessage('Supabaseクライアントが初期化されていません', 'error');
+        return;
+    }
     
     const input = document.createElement('input');
     input.type = 'file';
@@ -8820,18 +12433,16 @@ async function importUsedConstructNumbersCSV() {
             const errors = [];
             
             dataLines.forEach((line, index) => {
-                const parts = line.split(',').map(p => p.trim());
+                const parts = line.split(',').map(p => p.trim().replace(/^"|"$/g, ''));
                 if (parts.length >= 1 && parts[0]) {
                     const num = parts[0];
                     const date = parts[1] || new Date().toISOString().split('T')[0];
-                    const type = parts[2] || '採番';
                     
                     // バリデーション
                     if (num && num.length > 0) {
                         imported.push({
-                            number: num,
-                            date: date,
-                            type: type
+                            constructno: num,
+                            orderdate: date
                         });
                     } else {
                         errors.push(`行 ${index + 2}: 工事番号が空です`);
@@ -8844,15 +12455,21 @@ async function importUsedConstructNumbersCSV() {
                 return;
             }
             
-            // 既存データとマージ
-            const existing = await getUsedConstructNumbers();
-            const existingNumbers = new Set(existing.map(item => {
-                const num = typeof item === 'string' ? item : item.number;
-                return num;
-            }));
+            // 既存データを取得して重複チェック
+            const { data: existingData, error: fetchError } = await supabase
+                .from('t_constructionnumber')
+                .select('constructno');
             
-            // 重複をチェック
-            const newItems = imported.filter(item => !existingNumbers.has(item.number));
+            if (fetchError) {
+                console.error('既存データ取得エラー:', fetchError);
+                showMessage('既存データの取得に失敗しました', 'error');
+                return;
+            }
+            
+            const existingNumbers = new Set((existingData || []).map(item => item.constructno));
+            
+            // 重複をチェック（インポートデータのキーを小文字に変換）
+            const newItems = imported.filter(item => !existingNumbers.has(item.constructno));
             const duplicates = imported.length - newItems.length;
             
             if (newItems.length === 0) {
@@ -8860,16 +12477,27 @@ async function importUsedConstructNumbersCSV() {
                 return;
             }
             
-            // 既存データに追加
-            const merged = [...existing, ...newItems];
-            localStorage.setItem('used_construct_numbers', JSON.stringify(merged));
+            // テーブルに一括挿入
+            const { error: insertError } = await supabase
+                .from('t_constructionnumber')
+                .insert(newItems);
             
-            await loadUsedConstructNumbersList();
-            const selectElement = document.getElementById('construct-number-select');
-            await loadUsedConstructNumbersListInline(selectElement ? selectElement.value : null);
-            // ページ版の一覧も更新
+            if (insertError) {
+                console.error('テーブルへの挿入エラー:', insertError);
+                showMessage('データのインポートに失敗しました', 'error');
+                return;
+            }
+            
+            // 一覧を更新
             const pageSelectElement = document.getElementById('construct-number-select-page');
-            await loadUsedConstructNumbersListPage(pageSelectElement ? pageSelectElement.value : null);
+            if (pageSelectElement) {
+                await loadUsedConstructNumbersListPage(pageSelectElement.value || null);
+            }
+            
+            // モニターも更新
+            if (typeof loadConstructionNumberStatusPage === 'function') {
+                await loadConstructionNumberStatusPage();
+            }
             
             let message = `${newItems.length}件のデータをインポートしました`;
             if (duplicates > 0) {
@@ -9126,3 +12754,1121 @@ function copyConstructNumber() {
     
     showMessage('工事番号をクリップボードにコピーしました', 'success');
 }
+
+// スタッフプロフィールモーダルを開く
+let currentStaffData = null; // 現在表示中のスタッフデータを保持
+
+function openStaffProfileModal(staffData) {
+    const modal = document.getElementById('staff-profile-modal');
+    if (!modal) return;
+    
+    // 現在のデータを保存
+    currentStaffData = staffData;
+    
+    // アバターの設定（人型アイコンをカラフルに）
+    const avatar = document.getElementById('staff-avatar');
+    const staffName = staffData.staffname || staffData.StaffName || '';
+    
+    // アバターの色を名前から生成
+    const colors = [
+        'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+        'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
+        'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
+        'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)',
+        'linear-gradient(135deg, #fa709a 0%, #fee140 100%)',
+        'linear-gradient(135deg, #30cfd0 0%, #330867 100%)',
+        'linear-gradient(135deg, #a8edea 0%, #fed6e3 100%)',
+        'linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%)'
+    ];
+    const colorIndex = staffName ? staffName.charCodeAt(0) % colors.length : 0;
+    avatar.style.background = colors[colorIndex];
+    avatar.innerHTML = '<i class="fas fa-user" style="color: white; font-size: 24px;"></i>';
+    
+    // 基本情報
+    document.getElementById('staff-name').textContent = staffData.staffname || staffData.StaffName || '-';
+    document.getElementById('staff-position').textContent = staffData.position || staffData.Position || '役職未設定';
+    const staffCode = staffData.staffcode || staffData.StaffCode || '-';
+    document.getElementById('staff-code-badge').textContent = staffCode;
+    document.getElementById('staff-reading').textContent = staffData.reading || staffData.Reading || '-';
+    document.getElementById('staff-depa').textContent = staffData.depacode || staffData.DepaCode || '-';
+    document.getElementById('staff-workdepa').textContent = staffData.workdepa || staffData.WorkDepa || '-';
+    
+    // 連絡先
+    document.getElementById('staff-email').textContent = staffData.mailaddress || staffData.MailAddress || '-';
+    document.getElementById('staff-tel').textContent = staffData.telno || staffData.TelNo || '-';
+    document.getElementById('staff-mobile').textContent = staffData.cellphone || staffData.CellPhone || '-';
+    document.getElementById('staff-internal').textContent = staffData.internaltelno || staffData.InternalTelNo || '-';
+    
+    // その他
+    const joinDate = staffData.nuyusyadate || staffData.NuyushyaDate || '';
+    document.getElementById('staff-joindate').textContent = joinDate ? new Date(joinDate).toLocaleDateString('ja-JP') : '-';
+    document.getElementById('staff-loginid').textContent = staffData.loginid || staffData.LoginID || '-';
+    
+    // 編集ボタンを表示
+    const editBtn = document.getElementById('staff-profile-edit-btn');
+    if (editBtn) {
+        editBtn.style.display = 'flex';
+    }
+    
+    // モーダルを表示
+    modal.style.display = 'flex';
+    modal.style.opacity = '1';
+    modal.style.alignItems = 'center';
+    modal.style.justifyContent = 'center';
+    modal.style.position = 'fixed';
+    modal.style.top = '0';
+    modal.style.left = '0';
+    modal.style.right = '0';
+    modal.style.bottom = '0';
+    modal.style.zIndex = '10000';
+    modal.style.background = 'rgba(0, 0, 0, 0.5)';
+    
+    // アニメーション
+    setTimeout(() => {
+        modal.querySelector('.modal-content').style.transform = 'scale(1)';
+        modal.querySelector('.modal-content').style.opacity = '1';
+    }, 10);
+}
+
+// スタッフプロフィールモーダルから編集を開く
+function editStaffProfileFromModal() {
+    if (!currentStaffData) return;
+    
+    // プロフィールモーダルを閉じる
+    closeStaffProfileModal();
+    
+    // 少し待ってから編集モーダルを開く
+    setTimeout(() => {
+        openRegisterModal('編集', currentStaffData);
+    }, 300);
+}
+
+// スタッフプロフィールモーダルを閉じる
+function closeStaffProfileModal() {
+    const modal = document.getElementById('staff-profile-modal');
+    if (!modal) return;
+    
+    // アニメーション
+    const content = modal.querySelector('.modal-content');
+    content.style.transform = 'scale(0.9)';
+    content.style.opacity = '0';
+    
+    setTimeout(() => {
+        modal.style.display = 'none';
+        modal.style.opacity = '0';
+        currentStaffData = null; // データをクリア
+    }, 300);
+}
+
+// グローバルに公開
+window.openStaffProfileModal = openStaffProfileModal;
+window.editStaffProfileFromModal = editStaffProfileFromModal;
+window.closeStaffProfileModal = closeStaffProfileModal;
+
+// スタッフプロフィールモーダルの拡張バージョン（上書き）
+let currentStaffMode = 'view';
+
+// 元の関数を上書き
+window.openStaffProfileModal = function(staffData, mode = 'view') {
+    const modal = document.getElementById('staff-profile-modal');
+    if (!modal) return;
+    
+    window.currentStaffData = staffData || {};
+    window.currentStaffMode = mode;
+    
+    const avatar = document.getElementById('staff-avatar');
+    const staffName = staffData.staffname || staffData.StaffName || '';
+    
+    const colors = [
+        'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+        'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
+        'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
+        'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)',
+        'linear-gradient(135deg, #fa709a 0%, #fee140 100%)',
+        'linear-gradient(135deg, #30cfd0 0%, #330867 100%)',
+        'linear-gradient(135deg, #a8edea 0%, #fed6e3 100%)',
+        'linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%)'
+    ];
+    const colorIndex = staffName ? staffName.charCodeAt(0) % colors.length : 0;
+    avatar.style.background = colors[colorIndex];
+    avatar.innerHTML = '<i class="fas fa-user" style="color: white; font-size: 24px;"></i>';
+    
+    const nameEl = document.getElementById('staff-name');
+    const positionEl = document.getElementById('staff-position');
+    const codeBadgeEl = document.getElementById('staff-code-badge');
+    const editBtn = document.getElementById('staff-profile-edit-btn');
+    
+    if (mode === 'view') {
+        nameEl.textContent = staffName || '-';
+        positionEl.textContent = staffData.position || staffData.Position || '役職未設定';
+        codeBadgeEl.textContent = staffData.staffcode || staffData.StaffCode || '-';
+        positionEl.style.display = '';
+        codeBadgeEl.style.display = '';
+        editBtn.style.display = 'flex';
+        editBtn.innerHTML = '<i class="fas fa-edit"></i>編集';
+        editBtn.style.background = 'linear-gradient(135deg, #48bb78 0%, #38a169 100%)';
+        editBtn.onclick = () => window.editStaffProfileFromModal();
+    } else {
+        const titles = {
+            'edit': 'スタッフ情報編集',
+            'new': '新規スタッフ登録',
+            'duplicate': 'スタッフ情報複製'
+        };
+        nameEl.textContent = titles[mode] || 'スタッフ情報';
+        positionEl.style.display = 'none';
+        codeBadgeEl.style.display = 'none';
+        editBtn.style.display = 'flex';
+        editBtn.innerHTML = '<i class="fas fa-save"></i>保存';
+        editBtn.style.background = 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)';
+        editBtn.onclick = () => window.saveStaffProfile();
+    }
+    
+    const contentDiv = document.getElementById('staff-profile-content');
+    if (mode === 'view') {
+        contentDiv.innerHTML = window.generateViewContent(staffData);
+    } else {
+        contentDiv.innerHTML = window.generateEditContent(staffData, mode);
+    }
+    
+    modal.style.display = 'flex';
+    modal.style.alignItems = 'center';
+    modal.style.justifyContent = 'center';
+    modal.style.position = 'fixed';
+    modal.style.top = '0';
+    modal.style.left = '0';
+    modal.style.right = '0';
+    modal.style.bottom = '0';
+    modal.style.zIndex = '10000';
+    modal.style.background = 'rgba(0, 0, 0, 0.5)';
+    
+    setTimeout(() => {
+        modal.querySelector('.modal-content').style.transform = 'scale(1)';
+        modal.querySelector('.modal-content').style.opacity = '1';
+    }, 10);
+};
+
+window.generateViewContent = function(staffData) {
+    const joinDate = staffData.nuyusyadate || staffData.NuyushyaDate || '';
+    const joinDateFormatted = joinDate ? new Date(joinDate).toLocaleDateString('ja-JP') : '-';
+    
+    return `
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px; height: 100%;">
+            <div style="display: flex; flex-direction: column; gap: 20px;">
+                <div style="background: white; border-radius: 16px; padding: 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); flex: 1;">
+                    <h3 style="margin: 0 0 18px; color: #2d3748; font-size: 16px; font-weight: 700; display: flex; align-items: center; gap: 8px; padding-bottom: 12px; border-bottom: 2px solid #e2e8f0;">
+                        <div style="width: 6px; height: 6px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 50%;"></div>
+                        基本情報
+                    </h3>
+                    <div style="display: grid; gap: 16px;">
+                        <div class="profile-field-compact">
+                            <div class="profile-label-compact">スタッフコード</div>
+                            <div class="profile-value-compact">${staffData.staffcode || staffData.StaffCode || '-'}</div>
+                        </div>
+                        <div class="profile-field-compact">
+                            <div class="profile-label-compact">読み仮名</div>
+                            <div class="profile-value-compact">${staffData.reading || staffData.Reading || '-'}</div>
+                        </div>
+                        <div class="profile-field-compact">
+                            <div class="profile-label-compact">所属部署</div>
+                            <div class="profile-value-compact">${staffData.depacode || staffData.DepaCode || '-'}</div>
+                        </div>
+                        <div class="profile-field-compact">
+                            <div class="profile-label-compact">作業部署</div>
+                            <div class="profile-value-compact">${staffData.workdepa || staffData.WorkDepa || '-'}</div>
+                        </div>
+                    </div>
+                </div>
+                <div style="background: white; border-radius: 16px; padding: 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.06);">
+                    <h3 style="margin: 0 0 18px; color: #2d3748; font-size: 16px; font-weight: 700; display: flex; align-items: center; gap: 8px; padding-bottom: 12px; border-bottom: 2px solid #e2e8f0;">
+                        <div style="width: 6px; height: 6px; background: linear-gradient(135deg, #ed8936 0%, #dd6b20 100%); border-radius: 50%;"></div>
+                        その他
+                    </h3>
+                    <div style="display: grid; gap: 16px;">
+                        <div class="profile-field-compact">
+                            <div class="profile-label-compact">入社日</div>
+                            <div class="profile-value-compact">${joinDateFormatted}</div>
+                        </div>
+                        <div class="profile-field-compact">
+                            <div class="profile-label-compact">ログインID</div>
+                            <div class="profile-value-compact">${staffData.loginid || staffData.LoginID || '-'}</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div>
+                <div style="background: white; border-radius: 16px; padding: 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); height: 100%;">
+                    <h3 style="margin: 0 0 18px; color: #2d3748; font-size: 16px; font-weight: 700; display: flex; align-items: center; gap: 8px; padding-bottom: 12px; border-bottom: 2px solid #e2e8f0;">
+                        <div style="width: 6px; height: 6px; background: linear-gradient(135deg, #48bb78 0%, #38a169 100%); border-radius: 50%;"></div>
+                        連絡先
+                    </h3>
+                    <div style="display: grid; gap: 20px;">
+                        <div class="contact-field">
+                            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 6px;">
+                                <div style="width: 32px; height: 32px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 8px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                                    <i class="fas fa-envelope" style="color: white; font-size: 14px;"></i>
+                                </div>
+                                <div class="profile-label-compact" style="margin: 0;">メールアドレス</div>
+                            </div>
+                            <div class="profile-value-compact" style="padding-left: 42px; word-break: break-all;">${staffData.mailaddress || staffData.MailAddress || '-'}</div>
+                        </div>
+                        <div class="contact-field">
+                            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 6px;">
+                                <div style="width: 32px; height: 32px; background: linear-gradient(135deg, #48bb78 0%, #38a169 100%); border-radius: 8px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                                    <i class="fas fa-phone" style="color: white; font-size: 14px;"></i>
+                                </div>
+                                <div class="profile-label-compact" style="margin: 0;">電話番号</div>
+                            </div>
+                            <div class="profile-value-compact" style="padding-left: 42px;">${staffData.telno || staffData.TelNo || '-'}</div>
+                        </div>
+                        <div class="contact-field">
+                            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 6px;">
+                                <div style="width: 32px; height: 32px; background: linear-gradient(135deg, #ed8936 0%, #dd6b20 100%); border-radius: 8px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                                    <i class="fas fa-mobile-alt" style="color: white; font-size: 14px;"></i>
+                                </div>
+                                <div class="profile-label-compact" style="margin: 0;">携帯電話</div>
+                            </div>
+                            <div class="profile-value-compact" style="padding-left: 42px;">${staffData.cellphone || staffData.CellPhone || '-'}</div>
+                        </div>
+                        <div class="contact-field">
+                            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 6px;">
+                                <div style="width: 32px; height: 32px; background: linear-gradient(135deg, #4299e1 0%, #3182ce 100%); border-radius: 8px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                                    <i class="fas fa-phone-square" style="color: white; font-size: 14px;"></i>
+                                </div>
+                                <div class="profile-label-compact" style="margin: 0;">内線番号</div>
+                            </div>
+                            <div class="profile-value-compact" style="padding-left: 42px;">${staffData.internaltelno || staffData.InternalTelNo || '-'}</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+};
+
+window.generateEditContent = function(staffData, mode) {
+    const joinDate = staffData.nuyusyadate || staffData.NuyushyaDate || '';
+    const joinDateValue = joinDate ? new Date(joinDate).toISOString().split('T')[0] : '';
+    
+    if (mode === 'duplicate') {
+        staffData = { ...staffData };
+        delete staffData.id;
+        delete staffData.regino;
+    }
+    
+    return `
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px; height: 100%;">
+            <div style="display: flex; flex-direction: column; gap: 20px;">
+                <div style="background: white; border-radius: 16px; padding: 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); flex: 1;">
+                    <h3 style="margin: 0 0 18px; color: #2d3748; font-size: 16px; font-weight: 700; display: flex; align-items: center; gap: 8px; padding-bottom: 12px; border-bottom: 2px solid #e2e8f0;">
+                        <div style="width: 6px; height: 6px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 50%;"></div>
+                        基本情報
+                    </h3>
+                    <div style="display: grid; gap: 16px;">
+                        <div class="profile-field-compact">
+                            <label class="profile-label-compact">スタッフ名 *</label>
+                            <input type="text" id="edit-staffname" value="${staffData.staffname || staffData.StaffName || ''}" style="width: 100%; padding: 10px 12px; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 14px; font-weight: 600; transition: all 0.3s;" onfocus="this.style.borderColor='#667eea'" onblur="this.style.borderColor='#e2e8f0'">
+                        </div>
+                        <div class="profile-field-compact">
+                            <label class="profile-label-compact">スタッフコード *</label>
+                            <input type="text" id="edit-staffcode" value="${staffData.staffcode || staffData.StaffCode || ''}" style="width: 100%; padding: 10px 12px; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 14px; font-weight: 600; transition: all 0.3s;" onfocus="this.style.borderColor='#667eea'" onblur="this.style.borderColor='#e2e8f0'">
+                        </div>
+                        <div class="profile-field-compact">
+                            <label class="profile-label-compact">読み仮名</label>
+                            <input type="text" id="edit-reading" value="${staffData.reading || staffData.Reading || ''}" style="width: 100%; padding: 10px 12px; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 14px; transition: all 0.3s;" onfocus="this.style.borderColor='#667eea'" onblur="this.style.borderColor='#e2e8f0'">
+                        </div>
+                        <div class="profile-field-compact">
+                            <label class="profile-label-compact">所属部署</label>
+                            <input type="text" id="edit-depacode" value="${staffData.depacode || staffData.DepaCode || ''}" style="width: 100%; padding: 10px 12px; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 14px; transition: all 0.3s;" onfocus="this.style.borderColor='#667eea'" onblur="this.style.borderColor='#e2e8f0'">
+                        </div>
+                        <div class="profile-field-compact">
+                            <label class="profile-label-compact">作業部署</label>
+                            <input type="text" id="edit-workdepa" value="${staffData.workdepa || staffData.WorkDepa || ''}" style="width: 100%; padding: 10px 12px; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 14px; transition: all 0.3s;" onfocus="this.style.borderColor='#667eea'" onblur="this.style.borderColor='#e2e8f0'">
+                        </div>
+                        <div class="profile-field-compact">
+                            <label class="profile-label-compact">役職</label>
+                            <input type="text" id="edit-position" value="${staffData.position || staffData.Position || ''}" style="width: 100%; padding: 10px 12px; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 14px; transition: all 0.3s;" onfocus="this.style.borderColor='#667eea'" onblur="this.style.borderColor='#e2e8f0'">
+                        </div>
+                    </div>
+                </div>
+                <div style="background: white; border-radius: 16px; padding: 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.06);">
+                    <h3 style="margin: 0 0 18px; color: #2d3748; font-size: 16px; font-weight: 700; display: flex; align-items: center; gap: 8px; padding-bottom: 12px; border-bottom: 2px solid #e2e8f0;">
+                        <div style="width: 6px; height: 6px; background: linear-gradient(135deg, #ed8936 0%, #dd6b20 100%); border-radius: 50%;"></div>
+                        その他
+                    </h3>
+                    <div style="display: grid; gap: 16px;">
+                        <div class="profile-field-compact">
+                            <label class="profile-label-compact">入社日</label>
+                            <input type="date" id="edit-nuyusyadate" value="${joinDateValue}" style="width: 100%; padding: 10px 12px; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 14px; transition: all 0.3s;" onfocus="this.style.borderColor='#667eea'" onblur="this.style.borderColor='#e2e8f0'">
+                        </div>
+                        <div class="profile-field-compact">
+                            <label class="profile-label-compact">ログインID</label>
+                            <input type="text" id="edit-loginid" value="${staffData.loginid || staffData.LoginID || ''}" style="width: 100%; padding: 10px 12px; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 14px; transition: all 0.3s;" onfocus="this.style.borderColor='#667eea'" onblur="this.style.borderColor='#e2e8f0'">
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div>
+                <div style="background: white; border-radius: 16px; padding: 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); height: 100%;">
+                    <h3 style="margin: 0 0 18px; color: #2d3748; font-size: 16px; font-weight: 700; display: flex; align-items: center; gap: 8px; padding-bottom: 12px; border-bottom: 2px solid #e2e8f0;">
+                        <div style="width: 6px; height: 6px; background: linear-gradient(135deg, #48bb78 0%, #38a169 100%); border-radius: 50%;"></div>
+                        連絡先
+                    </h3>
+                    <div style="display: grid; gap: 20px;">
+                        <div class="profile-field-compact">
+                            <label class="profile-label-compact">
+                                <i class="fas fa-envelope" style="color: #667eea; margin-right: 6px;"></i>
+                                メールアドレス
+                            </label>
+                            <input type="email" id="edit-mailaddress" value="${staffData.mailaddress || staffData.MailAddress || ''}" style="width: 100%; padding: 10px 12px; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 14px; transition: all 0.3s;" onfocus="this.style.borderColor='#667eea'" onblur="this.style.borderColor='#e2e8f0'">
+                        </div>
+                        <div class="profile-field-compact">
+                            <label class="profile-label-compact">
+                                <i class="fas fa-phone" style="color: #48bb78; margin-right: 6px;"></i>
+                                電話番号
+                            </label>
+                            <input type="tel" id="edit-telno" value="${staffData.telno || staffData.TelNo || ''}" style="width: 100%; padding: 10px 12px; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 14px; transition: all 0.3s;" onfocus="this.style.borderColor='#48bb78'" onblur="this.style.borderColor='#e2e8f0'">
+                        </div>
+                        <div class="profile-field-compact">
+                            <label class="profile-label-compact">
+                                <i class="fas fa-mobile-alt" style="color: #ed8936; margin-right: 6px;"></i>
+                                携帯電話
+                            </label>
+                            <input type="tel" id="edit-cellphone" value="${staffData.cellphone || staffData.CellPhone || ''}" style="width: 100%; padding: 10px 12px; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 14px; transition: all 0.3s;" onfocus="this.style.borderColor='#ed8936'" onblur="this.style.borderColor='#e2e8f0'">
+                        </div>
+                        <div class="profile-field-compact">
+                            <label class="profile-label-compact">
+                                <i class="fas fa-phone-square" style="color: #4299e1; margin-right: 6px;"></i>
+                                内線番号
+                            </label>
+                            <input type="tel" id="edit-internaltelno" value="${staffData.internaltelno || staffData.InternalTelNo || ''}" style="width: 100%; padding: 10px 12px; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 14px; transition: all 0.3s;" onfocus="this.style.borderColor='#4299e1'" onblur="this.style.borderColor='#e2e8f0'">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+};
+
+window.saveStaffProfile = async function() {
+    const formData = {
+        staffname: document.getElementById('edit-staffname')?.value || '',
+        staffcode: document.getElementById('edit-staffcode')?.value || '',
+        reading: document.getElementById('edit-reading')?.value || '',
+        depacode: document.getElementById('edit-depacode')?.value || '',
+        workdepa: document.getElementById('edit-workdepa')?.value || '',
+        position: document.getElementById('edit-position')?.value || '',
+        mailaddress: document.getElementById('edit-mailaddress')?.value || '',
+        telno: document.getElementById('edit-telno')?.value || '',
+        cellphone: document.getElementById('edit-cellphone')?.value || '',
+        internaltelno: document.getElementById('edit-internaltelno')?.value || '',
+        nuyusyadate: document.getElementById('edit-nuyusyadate')?.value || null,
+        loginid: document.getElementById('edit-loginid')?.value || ''
+    };
+    
+    if (!formData.staffname || !formData.staffcode) {
+        showMessage('スタッフ名とスタッフコードは必須です', 'error');
+        return;
+    }
+    
+    try {
+        const supabase = getSupabaseClient();
+        if (!supabase) {
+            throw new Error('Supabaseクライアントが初期化されていません');
+        }
+        
+        let result;
+        if (window.currentStaffMode === 'edit' && window.currentStaffData.regino) {
+            result = await supabase
+                .from('t_staffcode')
+                .update(formData)
+                .eq('regino', window.currentStaffData.regino);
+            
+            if (result.error) throw result.error;
+            showMessage('スタッフ情報を更新しました', 'success');
+        } else {
+            result = await supabase
+                .from('t_staffcode')
+                .insert([formData]);
+            
+            if (result.error) throw result.error;
+            showMessage('スタッフ情報を登録しました', 'success');
+        }
+        
+        closeStaffProfileModal();
+        await loadTableData(currentTable);
+        
+    } catch (error) {
+        console.error('保存エラー:', error);
+        showMessage('保存に失敗しました: ' + (error.message || '不明なエラー'), 'error');
+    }
+};
+
+window.editStaffProfileFromModal = function() {
+    if (!window.currentStaffData) return;
+    window.openStaffProfileModal(window.currentStaffData, 'edit');
+};
+
+
+// テーブル別カスタムモーダルシステム
+window.openCustomTableModal = function(tableName, data, mode = 'view') {
+    console.log('=== openCustomTableModal ===');
+    console.log('tableName:', tableName);
+    console.log('mode:', mode);
+    
+    const config = findTableConfig(tableName);
+    
+    console.log('Config found:', !!config);
+    if (config) {
+        console.log('Config name:', config.displayName);
+    }
+    
+    // 設定がない場合はスタッフコードの処理へ
+    if (!config) {
+        const normalizedTable = normalizeTableName(tableName || '');
+        if (normalizedTable === 'tstaffcode' || normalizedTable === 'staffcode') {
+            console.log('→ Fallback to staff profile modal');
+            return window.openStaffProfileModal(data, mode);
+        }
+        // デフォルトのモーダルを使用
+        console.warn('No config found for table:', tableName);
+        return;
+    }
+    
+    const modal = document.getElementById('custom-table-modal');
+    if (!modal) {
+        console.error('custom-table-modal element not found!');
+        return;
+    }
+    
+    window.currentTableData = data || {};
+    window.currentTableMode = mode;
+    window.currentTableName = tableName;
+    
+    // レイアウトに応じてモーダルの幅を調整
+    const modalContent = modal.querySelector('.modal-content');
+    if (modalContent) {
+        if (config.layout === 'triple') {
+            modalContent.style.maxWidth = '1200px';
+        } else if (config.layout === 'double') {
+            modalContent.style.maxWidth = '900px';
+        } else {
+            modalContent.style.maxWidth = '550px';
+        }
+    }
+    
+    // ヘッダーを生成
+    const header = modal.querySelector('.custom-modal-header');
+    if (!header) {
+        console.error('custom-modal-header not found!');
+        return;
+    }
+    header.innerHTML = generateCustomHeader(config, data, mode);
+    
+    // コンテンツを生成
+    const content = modal.querySelector('.custom-modal-content');
+    if (mode === 'view') {
+        content.innerHTML = generateCustomViewContent(config, data);
+    } else {
+        content.innerHTML = generateCustomEditContent(config, data, mode);
+    }
+    
+    // モーダルを表示
+    modal.style.display = 'flex';
+    modal.style.opacity = '1';
+    setTimeout(() => {
+        modal.querySelector('.modal-content').style.transform = 'scale(1)';
+        modal.querySelector('.modal-content').style.opacity = '1';
+    }, 10);
+};
+
+function generateCustomHeader(config, data, mode) {
+    const { displayName, svg, color } = config;
+    
+    const titles = {
+        'view': displayName + ' 詳細',
+        'edit': displayName + ' 編集',
+        'new': displayName + ' 新規登録',
+        'duplicate': displayName + ' 複製'
+    };
+    
+    const buttonHtml = mode === 'view' 
+        ? `<button class="custom-modal-btn" onclick="editCustomTableModal()" style="background: linear-gradient(135deg, ${color.primary} 0%, ${color.secondary} 100%);">
+            <i class="fas fa-edit"></i>編集
+           </button>`
+        : `<button class="custom-modal-btn" onclick="saveCustomTableData()" style="background: linear-gradient(135deg, ${color.primary} 0%, ${color.secondary} 100%);">
+            <i class="fas fa-save"></i>保存
+           </button>`;
+    
+    return `
+        <div class="custom-modal-header-inner" style="background: linear-gradient(135deg, ${color.primary} 0%, ${color.secondary} 100%); padding: 28px 40px; position: relative; overflow: hidden;">
+            <div style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; opacity: 0.08; background-image: repeating-linear-gradient(45deg, transparent, transparent 12px, rgba(255,255,255,0.15) 12px, rgba(255,255,255,0.15) 24px);"></div>
+            <div style="position: absolute; top: -50%; right: -20%; width: 60%; height: 200%; background: linear-gradient(90deg, transparent, rgba(255,255,255,0.06)); transform: skewX(-12deg); pointer-events: none;"></div>
+            <button type="button" onclick="closeCustomTableModal()" class="custom-modal-close-btn" style="position: absolute; top: 16px; right: 16px; background: rgba(255,255,255,0.2); border: none; width: 36px; height: 36px; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; z-index: 100;" aria-label="閉じる">
+                <i class="fas fa-times" style="color: white; font-size: 16px;"></i>
+            </button>
+            <div style="display: flex; align-items: center; gap: 28px; position: relative; z-index: 5; padding-right: 56px;">
+                <div class="custom-modal-header-icon" style="width: 72px; height: 72px; background: rgba(255,255,255,0.22); border-radius: 18px; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(12px); flex-shrink: 0; border: 1px solid rgba(255,255,255,0.25); box-shadow: 0 8px 24px rgba(0,0,0,0.15);">
+                    ${svg}
+                </div>
+                <div style="flex: 1;">
+                    <h2 style="margin: 0 0 6px; color: white; font-size: 24px; font-weight: 800; letter-spacing: -0.02em; text-shadow: 0 2px 8px rgba(0,0,0,0.2);">${titles[mode]}</h2>
+                    <div style="color: rgba(255,255,255,0.92); font-size: 13px; font-weight: 600; letter-spacing: 0.02em;">${displayName}の${mode === 'view' ? '詳細情報' : '入力フォーム'}</div>
+                </div>
+                ${buttonHtml}
+            </div>
+        </div>
+    `;
+}
+
+function generateCustomViewContent(config, data) {
+    const { sections, layout } = config;
+    const columns = layout === 'triple' ? 3 : layout === 'double' ? 2 : 1;
+    
+    let html = `<div style="display: grid; grid-template-columns: repeat(${columns}, 1fr); gap: 24px; align-items: start;">`;
+    
+    sections.forEach(section => {
+        // セクション内は常に2列を基本とする（全幅指定で1列に調整可能）
+        const sectionColumns = 2;
+        html += `
+            <div class="config-section-card" style="border-top: 4px solid ${section.color};">
+                <h3 style="margin: 0 0 18px; color: #1e293b; font-size: 17px; font-weight: 700; display: flex; align-items: center; gap: 10px; padding-bottom: 12px; border-bottom: 1px solid #e2e8f0;">
+                    <i class="fas ${section.icon || 'fa-info-circle'}" style="color: ${section.color};"></i>
+                    ${section.title}
+                </h3>
+                <div style="display: grid; grid-template-columns: repeat(${sectionColumns}, 1fr); gap: 14px;">
+        `;
+        
+        section.fields.forEach(field => {
+            const value = data[field.name] || data[field.name.charAt(0).toUpperCase() + field.name.slice(1)] || '-';
+            const displayValue = field.type === 'date' && value !== '-' 
+                ? new Date(value).toLocaleDateString('ja-JP')
+                : field.type === 'number' && value !== '-'
+                ? parseFloat(value).toLocaleString('ja-JP')
+                : value;
+            
+            // width: 'full' または textarea の場合は2列分占有
+            const isFullWidth = field.width === 'full' || (field.type === 'textarea');
+            const gridSpan = isFullWidth ? `grid-column: span ${sectionColumns};` : '';
+            
+            html += `
+                <div class="profile-field-compact" style="${gridSpan}">
+                    <div class="profile-label-compact">${field.label}</div>
+                    <div class="profile-value-compact" style="word-break: break-all;">${displayValue}</div>
+                </div>
+            `;
+        });
+        
+        html += `
+                </div>
+            </div>
+        `;
+    });
+    
+    html += `</div>`;
+    return html;
+}
+
+function generateCustomEditContent(config, data, mode) {
+    const { sections, layout } = config;
+    const columns = layout === 'triple' ? 3 : layout === 'double' ? 2 : 1;
+    
+    // 複製モードの場合はIDをクリア
+    if (mode === 'duplicate') {
+        data = { ...data };
+        delete data.id;
+        Object.keys(data).forEach(key => {
+            if (key.toLowerCase().includes('id') || key.toLowerCase() === 'regino') {
+                delete data[key];
+            }
+        });
+    }
+    
+    let html = `<div style="display: grid; grid-template-columns: repeat(${columns}, 1fr); gap: 24px; align-items: start;">`;
+    
+    sections.forEach(section => {
+        // セクション内は常に2列を基本とする（全幅指定で1列に調整可能）
+        const sectionColumns = 2;
+        html += `
+            <div class="config-section-card" style="border-top: 4px solid ${section.color};">
+                <h3 style="margin: 0 0 18px; color: #1e293b; font-size: 17px; font-weight: 700; display: flex; align-items: center; gap: 10px; padding-bottom: 12px; border-bottom: 1px solid #e2e8f0;">
+                    <i class="fas ${section.icon || 'fa-info-circle'}" style="color: ${section.color};"></i>
+                    ${section.title}
+                </h3>
+                <div style="display: grid; grid-template-columns: repeat(${sectionColumns}, 1fr); gap: 14px;">
+        `;
+        
+        section.fields.forEach(field => {
+            const value = data[field.name] || data[field.name.charAt(0).toUpperCase() + field.name.slice(1)] || '';
+            const dateValue = field.type === 'date' && value 
+                ? new Date(value).toISOString().split('T')[0]
+                : value;
+            
+            const requiredMark = field.required ? ' *' : '';
+            // width: 'full' または textarea の場合は2列分占有
+            const isFullWidth = field.width === 'full' || field.type === 'textarea';
+            const gridSpan = isFullWidth ? `grid-column: span ${sectionColumns};` : '';
+            
+            html += `
+                <div class="profile-field-compact" style="${gridSpan}">
+                    <label class="profile-label-compact">
+                        ${field.icon ? `<i class="fas ${field.icon}" style="color: ${section.color}; margin-right: 6px;"></i>` : ''}
+                        ${field.label}${requiredMark}
+                    </label>
+            `;
+            
+            const commonStyle = `width: 100%; padding: 10px 12px; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 14px; transition: all 0.3s; box-sizing: border-box;`;
+            
+            if (field.type === 'textarea') {
+                html += `<textarea id="edit-${field.name}" rows="3" style="${commonStyle} resize: vertical;" onfocus="this.style.borderColor='${section.color}'; this.style.boxShadow='0 0 0 3px ${section.color}20'" onblur="this.style.borderColor='#e2e8f0'; this.style.boxShadow='none'">${value}</textarea>`;
+            } else if (field.type === 'select' && field.options) {
+                html += `<select id="edit-${field.name}" style="${commonStyle}" onfocus="this.style.borderColor='${section.color}'; this.style.boxShadow='0 0 0 3px ${section.color}20'" onblur="this.style.borderColor='#e2e8f0'; this.style.boxShadow='none'">`;
+                html += `<option value="">選択してください</option>`;
+                field.options.forEach(opt => {
+                    const selected = value === opt ? 'selected' : '';
+                    html += `<option value="${opt}" ${selected}>${opt}</option>`;
+                });
+                html += `</select>`;
+            } else {
+                const inputValue = field.type === 'date' ? dateValue : value;
+                const isDateField = field.type === 'date';
+                
+                if (isDateField) {
+                    html += `
+                        <div class="date-input-wrapper" style="position: relative; display: flex; align-items: center; width: 100%;">
+                            <input type="text" id="edit-${field.name}" value="${inputValue ? inputValue.replace(/-/g, '/') : ''}" placeholder="YYYY/MM/DD" 
+                                style="${commonStyle} padding-right: 35px;" 
+                                onfocus="this.style.borderColor='${section.color}'; this.style.boxShadow='0 0 0 3px ${section.color}20'" 
+                                onblur="this.style.borderColor='#e2e8f0'; this.style.boxShadow='none'">
+                            <i class="fas fa-calendar-alt" style="position: absolute; right: 12px; color: ${section.color}; cursor: pointer;" onclick="openCustomCalendar(document.getElementById('edit-${field.name}'))"></i>
+                        </div>`;
+                } else {
+                    html += `<input type="${field.type}" id="edit-${field.name}" value="${inputValue}" style="${commonStyle}" onfocus="this.style.borderColor='${section.color}'; this.style.boxShadow='0 0 0 3px ${section.color}20'" onblur="this.style.borderColor='#e2e8f0'; this.style.boxShadow='none'">`;
+                }
+            }
+            
+            html += `
+                </div>
+            `;
+        });
+        
+        html += `
+                </div>
+            </div>
+        `;
+    });
+    
+    html += `</div>`;
+    return html;
+}
+
+window.editCustomTableModal = function() {
+    if (!window.currentTableData || !window.currentTableName) return;
+    window.openCustomTableModal(window.currentTableName, window.currentTableData, 'edit');
+};
+
+window.saveCustomTableData = async function() {
+    const config = window.TABLE_MODAL_CONFIGS?.[window.currentTableName.toLowerCase()];
+    if (!config) return;
+    
+    // フォームデータを収集
+    const formData = {};
+    config.sections.forEach(section => {
+        section.fields.forEach(field => {
+            const element = document.getElementById(`edit-${field.name}`);
+            if (element) {
+                formData[field.name] = element.value || null;
+            }
+        });
+    });
+    
+    // 必須チェック
+    const requiredFields = [];
+    config.sections.forEach(section => {
+        section.fields.forEach(field => {
+            if (field.required && !formData[field.name]) {
+                requiredFields.push(field.label);
+            }
+        });
+    });
+    
+    if (requiredFields.length > 0) {
+        showMessage(`以下の項目は必須です: ${requiredFields.join(', ')}`, 'error');
+        return;
+    }
+    
+    try {
+        const supabase = getSupabaseClient();
+        if (!supabase) {
+            throw new Error('Supabaseクライアントが初期化されていません');
+        }
+        
+        let result;
+        const primaryKey = Object.keys(window.currentTableData).find(key => 
+            key.toLowerCase().includes('id') || key.toLowerCase() === 'regino'
+        );
+        
+        if (window.currentTableMode === 'edit' && primaryKey && window.currentTableData[primaryKey]) {
+            // 更新
+            result = await supabase
+                .from(window.currentTableName)
+                .update(formData)
+                .eq(primaryKey, window.currentTableData[primaryKey]);
+            
+            if (result.error) throw result.error;
+            showMessage(`${config.displayName}を更新しました`, 'success');
+        } else {
+            // 新規追加
+            result = await supabase
+                .from(window.currentTableName)
+                .insert([formData]);
+            
+            if (result.error) throw result.error;
+            showMessage(`${config.displayName}を登録しました`, 'success');
+        }
+        
+        closeCustomTableModal();
+        await loadTableData(currentTable);
+        
+    } catch (error) {
+        console.error('保存エラー:', error);
+        showMessage('保存に失敗しました: ' + (error.message || '不明なエラー'), 'error');
+    }
+};
+
+window.closeCustomTableModal = function() {
+    const modal = document.getElementById('custom-table-modal');
+    if (!modal) return;
+    
+    const content = modal.querySelector('.modal-content');
+    content.style.transform = 'scale(0.9)';
+    content.style.opacity = '0';
+    
+    setTimeout(() => {
+        modal.style.display = 'none';
+        modal.style.opacity = '0';
+        window.currentTableData = null;
+        window.currentTableMode = 'view';
+        window.currentTableName = null;
+    }, 300);
+};
+
+// 受注登録（営業部用）の専用モーダルを開く
+async function openOrderRegistrationModal() {
+    console.log('受注登録モーダルを開きます');
+    
+    // 顧客マスタから選択肢を取得（検索用）
+    let customers = [];
+    try {
+        const { data, error } = await getSupabaseClient()
+            .from('t_companycode')
+            .select('CompanyCode, CompanyName')
+            .order('CompanyName');
+        if (!error && data) customers = data;
+    } catch (e) {
+        console.warn('顧客マスタの取得に失敗しました', e);
+    }
+
+    // モーダルのHTML構造を生成
+    const modalHtml = `
+        <div id="order-registration-modal" class="custom-table-modal" style="display: flex; opacity: 1;">
+            <div class="custom-modal-container" style="width: 900px; max-width: 95vw; max-height: 90vh; background: white; border-radius: 8px; box-shadow: 0 10px 25px rgba(0,0,0,0.2); overflow: hidden; display: flex; flex-direction: column;">
+                <div class="custom-modal-header" style="background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%); color: white; padding: 16px 24px; display: flex; justify-content: space-between; align-items: center; flex-shrink: 0;">
+                    <div class="header-left" style="display: flex; align-items: center; gap: 12px;">
+                        <i class="fas fa-file-invoice-dollar" style="font-size: 20px;"></i>
+                        <h3 style="margin: 0; font-size: 18px; font-weight: 600;">新規受注登録 (営業受注入力)</h3>
+                    </div>
+                    <button class="close-btn" onclick="closeOrderRegistrationModal()" style="background: none; border: none; color: white; font-size: 24px; cursor: pointer;">&times;</button>
+                </div>
+                <div class="custom-modal-content" style="padding: 24px; overflow-y: auto; flex: 1;">
+                    <form id="order-registration-form">
+                        <!-- セクション1: 基本情報 -->
+                        <div class="config-section-card" style="border-left: 4px solid #3b82f6; margin-bottom: 24px; background: #f8fafc; padding: 20px; border-radius: 0 8px 8px 0; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
+                            <h4 style="color: #1e40af; margin-top: 0; margin-bottom: 16px; display: flex; align-items: center; gap: 8px;"><i class="fas fa-info-circle"></i> 基本情報</h4>
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                                <div class="profile-field-compact">
+                                    <label style="display: block; font-size: 12px; color: #64748b; margin-bottom: 4px; font-weight: 600;">工事番号 <span style="color: red;">*</span></label>
+                                    <div style="display: flex; gap: 8px;">
+                                        <input type="text" id="reg-ConstructNo" name="ConstructNo" placeholder="例: 24001" required style="flex: 1; padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 4px;">
+                                        <button type="button" class="action-btn-detail" style="width: auto; padding: 0 12px; font-size: 12px; height: 38px;" onclick="showPage('construct-number')">採番へ</button>
+                                    </div>
+                                </div>
+                                <div class="profile-field-compact">
+                                    <label style="display: block; font-size: 12px; color: #64748b; margin-bottom: 4px; font-weight: 600;">工事名称 <span style="color: red;">*</span></label>
+                                    <input type="text" id="reg-ConstructName" name="ConstructName" placeholder="〇〇株式会社 向け △△装置" required style="width: 100%; padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 4px;">
+                                </div>
+                                <div class="profile-field-compact">
+                                    <label style="display: block; font-size: 12px; color: #64748b; margin-bottom: 4px; font-weight: 600;">顧客選択 (マスタ)</label>
+                                    <select id="reg-OwnerCode" name="OwnerCode" style="width: 100%; padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 4px; background: white;">
+                                        <option value="">選択してください</option>
+                                        ${customers.map(c => `<option value="${c.CompanyCode}">${c.CompanyName} (${c.CompanyCode})</option>`).join('')}
+                                    </select>
+                                </div>
+                                <div class="profile-field-compact">
+                                    <label style="display: block; font-size: 12px; color: #64748b; margin-bottom: 4px; font-weight: 600;">営業担当者</label>
+                                    <input type="text" id="reg-StaffCode" name="StaffCode" placeholder="担当者名" style="width: 100%; padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 4px;">
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- セクション2: 金額・納期 -->
+                        <div class="config-section-card" style="border-left: 4px solid #10b981; margin-bottom: 24px; background: #f8fafc; padding: 20px; border-radius: 0 8px 8px 0; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
+                            <h4 style="color: #059669; margin-top: 0; margin-bottom: 16px; display: flex; align-items: center; gap: 8px;"><i class="fas fa-yen-sign"></i> 受注金額・スケジュール</h4>
+                            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px;">
+                                <div class="profile-field-compact">
+                                    <label style="display: block; font-size: 12px; color: #64748b; margin-bottom: 4px; font-weight: 600;">受注金額</label>
+                                    <input type="number" id="reg-OrderPrice" name="OrderPrice" placeholder="0" style="width: 100%; padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 4px; text-align: right; font-weight: bold; color: #059669;">
+                                </div>
+                                <div class="profile-field-compact">
+                                    <label style="display: block; font-size: 12px; color: #64748b; margin-bottom: 4px; font-weight: 600;">受注日</label>
+                                    <div class="date-input-wrapper" style="position: relative; display: flex; align-items: center; height: 38px;">
+                                        <input type="text" id="reg-OrderDate" name="OrderDate" class="date-input" placeholder="YYYY/MM/DD" style="width: 100%; height: 100%; padding: 8px 35px 8px 12px; border: 1px solid #cbd5e1; border-radius: 4px;">
+                                        <i class="fas fa-calendar-alt" style="position: absolute; right: 10px; color: #10b981; cursor: pointer;" onclick="openCustomCalendar(document.getElementById('reg-OrderDate'))"></i>
+                                    </div>
+                                </div>
+                                <div class="profile-field-compact">
+                                    <label style="display: block; font-size: 12px; color: #64748b; margin-bottom: 4px; font-weight: 600;">納期</label>
+                                    <div class="date-input-wrapper" style="position: relative; display: flex; align-items: center; height: 38px;">
+                                        <input type="text" id="reg-DeliveryDate" name="DeliveryDate" class="date-input" placeholder="YYYY/MM/DD" style="width: 100%; height: 100%; padding: 8px 35px 8px 12px; border: 1px solid #cbd5e1; border-radius: 4px;">
+                                        <i class="fas fa-calendar-alt" style="position: absolute; right: 10px; color: #10b981; cursor: pointer;" onclick="openCustomCalendar(document.getElementById('reg-DeliveryDate'))"></i>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- セクション3: 電帳法・ドキュメント管理 -->
+                        <div class="config-section-card" style="border-left: 4px solid #f59e0b; margin-bottom: 24px; background: #f8fafc; padding: 20px; border-radius: 0 8px 8px 0; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
+                            <h4 style="color: #d97706; margin-top: 0; margin-bottom: 16px; display: flex; align-items: center; gap: 8px;"><i class="fas fa-cloud-upload-alt"></i> 電帳法対応 (OneDrive連携用)</h4>
+                            <div style="background: #fffbeb; padding: 12px; border-radius: 8px; font-size: 13px; color: #92400e; margin-bottom: 12px; border: 1px solid #fef3c7;">
+                                <i class="fas fa-exclamation-triangle"></i> 受注登録完了後、見積書・注文書をOneDriveへアップロードしてください。
+                            </div>
+                            <div class="profile-field-compact">
+                                <label style="display: block; font-size: 12px; color: #64748b; margin-bottom: 4px; font-weight: 600;">関連ドキュメント備考</label>
+                                <textarea id="reg-Memo" name="Memo" rows="2" placeholder="ドキュメントの保管場所や特記事項" style="width: 100%; padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 4px; resize: vertical;"></textarea>
+                            </div>
+                        </div>
+
+                        <div style="display: flex; justify-content: flex-end; gap: 12px; margin-top: 24px; padding-bottom: 20px;">
+                            <button type="button" class="action-btn-detail" style="background: #f1f5f9; color: #64748b; border: 1px solid #cbd5e1 !important; width: auto; padding: 0 24px; height: 42px;" onclick="closeOrderRegistrationModal()">キャンセル</button>
+                            <button type="submit" class="action-btn-detail" style="background: #1e40af; color: white; width: 240px; font-weight: bold; height: 42px;">受注情報を登録する</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    `;
+
+    // モーダルをDOMに追加
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+
+    // フォーム送信イベント
+    document.getElementById('order-registration-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        
+        // ローディング表示（オプション）
+        const submitBtn = e.target.querySelector('button[type="submit"]');
+        const originalText = submitBtn.textContent;
+        submitBtn.disabled = true;
+        submitBtn.textContent = '登録中...';
+        
+        const formData = new FormData(e.target);
+        const data = Object.fromEntries(formData.entries());
+        
+        // 日付形式の変換 (YYYY/MM/DD -> YYYY-MM-DD)
+        if (data.OrderDate) data.OrderDate = data.OrderDate.replace(/\//g, '-');
+        if (data.DeliveryDate) data.DeliveryDate = data.DeliveryDate.replace(/\//g, '-');
+        
+        // 数値変換
+        if (data.OrderPrice) data.OrderPrice = parseFloat(data.OrderPrice);
+        
+        // デフォルト値のセット
+        data.RegisterDate = new Date().toISOString();
+        
+        try {
+            const { error } = await getSupabaseClient()
+                .from('t_acceptorder')
+                .insert([data]);
+            
+            if (error) throw error;
+            
+            alert('受注登録が完了しました。\n製造指図書のPDF出力と関連部署への通知準備を行ってください。');
+            closeOrderRegistrationModal();
+            if (window.currentTableName === 't_acceptorder') displayTable();
+        } catch (error) {
+            console.error('登録エラー:', error);
+            alert('登録に失敗しました: ' + error.message);
+        } finally {
+            submitBtn.disabled = false;
+            submitBtn.textContent = originalText;
+        }
+    });
+}
+
+function closeOrderRegistrationModal() {
+    const modal = document.getElementById('order-registration-modal');
+    if (modal) modal.remove();
+}
+
+// グローバルに公開
+window.closeOrderRegistrationModal = closeOrderRegistrationModal;
+
+// 購入部品発注（資材課用）の専用モーダルを開く
+async function openPurchaseOrderModal() {
+    console.log('購入部品発注モーダルを開きます');
+    
+    // 取引先リストを取得（発注先用）
+    let vendors = [];
+    try {
+        const { data, error } = await getSupabaseClient()
+            .from('t_companycode')
+            .select('CompanyCode, CompanyName')
+            .order('CompanyName');
+        if (!error && data) vendors = data;
+    } catch (e) {
+        console.warn('取引先マスタの取得に失敗しました', e);
+    }
+
+    const modalHtml = `
+        <div id="purchase-order-modal" class="custom-table-modal" style="display: flex; opacity: 1;">
+            <div class="custom-modal-container" style="width: 1000px; max-width: 95vw; max-height: 90vh; background: white; border-radius: 8px; box-shadow: 0 10px 25px rgba(0,0,0,0.2); overflow: hidden; display: flex; flex-direction: column;">
+                <div class="custom-modal-header" style="background: linear-gradient(135deg, #166534 0%, #22c55e 100%); color: white; padding: 16px 24px; display: flex; justify-content: space-between; align-items: center; flex-shrink: 0;">
+                    <div class="header-left" style="display: flex; align-items: center; gap: 12px;">
+                        <i class="fas fa-shopping-cart" style="font-size: 20px;"></i>
+                        <h3 style="margin: 0; font-size: 18px; font-weight: 600;">購入部品発注入力 (資材管理)</h3>
+                    </div>
+                    <button class="close-btn" onclick="closePurchaseOrderModal()" style="background: none; border: none; color: white; font-size: 24px; cursor: pointer;">&times;</button>
+                </div>
+                <div class="custom-modal-content" style="padding: 24px; overflow-y: auto; flex: 1;">
+                    <form id="purchase-order-form">
+                        <!-- セクション1: 発注基本情報 -->
+                        <div class="config-section-card" style="border-left: 4px solid #10b981; margin-bottom: 24px; background: #f0fdf4; padding: 20px; border-radius: 0 8px 8px 0; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
+                            <h4 style="color: #166534; margin-top: 0; margin-bottom: 16px; display: flex; align-items: center; gap: 8px;"><i class="fas fa-barcode"></i> 部品・在庫情報</h4>
+                            <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 20px;">
+                                <div class="profile-field-compact">
+                                    <label style="display: block; font-size: 12px; color: #64748b; margin-bottom: 4px; font-weight: 600;">部品名/型番 <span style="color: red;">*</span></label>
+                                    <input type="text" id="reg-PartsName" name="PartsName" placeholder="例: ボルト M8x20" required style="width: 100%; padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 4px;" onchange="checkInventory(this.value)">
+                                </div>
+                                <div class="profile-field-compact">
+                                    <label style="display: block; font-size: 12px; color: #64748b; margin-bottom: 4px; font-weight: 600;">注文番号区分</label>
+                                    <select id="reg-OrderType" name="OrderType" style="width: 100%; padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 4px; background: white;" onchange="generateOrderNumber(this.value)">
+                                        <option value="P">個別発注 (P番)</option>
+                                        <option value="A">一括発注 (A番)</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div id="inventory-alert" style="display: none; margin-top: 12px; padding: 10px; background: #fffbeb; border: 1px solid #fef3c7; border-radius: 6px; color: #92400e; font-size: 13px;">
+                                <i class="fas fa-warehouse"></i> <span id="inventory-msg">在庫があります。払い出しますか？</span>
+                                <button type="button" style="margin-left: 10px; background: #d97706; color: white; border: none; padding: 2px 8px; border-radius: 4px; cursor: pointer;" onclick="useInventory()">はい（在庫を使用）</button>
+                            </div>
+                        </div>
+
+                        <!-- セクション2: 発注先・金額 -->
+                        <div class="config-section-card" style="border-left: 4px solid #3b82f6; margin-bottom: 24px; background: #f8fafc; padding: 20px; border-radius: 0 8px 8px 0; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
+                            <h4 style="color: #1e40af; margin-top: 0; margin-bottom: 16px; display: flex; align-items: center; gap: 8px;"><i class="fas fa-truck"></i> 発注先・取引条件</h4>
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                                <div class="profile-field-compact">
+                                    <label style="display: block; font-size: 12px; color: #64748b; margin-bottom: 4px; font-weight: 600;">発注先 (仕入先)</label>
+                                    <select id="reg-VendorCode" name="VendorCode" style="width: 100%; padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 4px; background: white;">
+                                        <option value="">選択してください</option>
+                                        ${vendors.map(v => `<option value="${v.CompanyCode}">${v.CompanyName} (${v.CompanyCode})</option>`).join('')}
+                                    </select>
+                                </div>
+                                <div class="profile-field-compact">
+                                    <label style="display: block; font-size: 12px; color: #64748b; margin-bottom: 4px; font-weight: 600;">発注金額 (単価)</label>
+                                    <input type="number" id="reg-UnitPrice" name="UnitPrice" placeholder="0" style="width: 100%; padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 4px; text-align: right;">
+                                </div>
+                                <div class="profile-field-compact">
+                                    <label style="display: block; font-size: 12px; color: #64748b; margin-bottom: 4px; font-weight: 600;">注文番号 (自動付与)</label>
+                                    <input type="text" id="reg-OrderNo" name="OrderNo" readonly style="width: 100%; padding: 8px 12px; border: 1px solid #e2e8f0; border-radius: 4px; background: #f1f5f9; font-family: monospace;">
+                                </div>
+                                <div class="profile-field-compact">
+                                    <label style="display: block; font-size: 12px; color: #64748b; margin-bottom: 4px; font-weight: 600;">希望納期</label>
+                                    <div class="date-input-wrapper" style="position: relative; display: flex; align-items: center; height: 38px;">
+                                        <input type="text" id="reg-PurchaseDeliveryDate" name="DeliveryDate" class="date-input" placeholder="YYYY/MM/DD" style="width: 100%; height: 100%; padding: 8px 35px 8px 12px; border: 1px solid #cbd5e1; border-radius: 4px;">
+                                        <i class="fas fa-calendar-alt" style="position: absolute; right: 10px; color: #3b82f6; cursor: pointer;" onclick="openCustomCalendar(document.getElementById('reg-PurchaseDeliveryDate'))"></i>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div style="display: flex; justify-content: flex-end; gap: 12px; margin-top: 24px; padding-bottom: 20px;">
+                            <button type="button" class="action-btn-detail" style="background: #f1f5f9; color: #64748b; border: 1px solid #cbd5e1 !important; width: auto; padding: 0 24px; height: 42px;" onclick="closePurchaseOrderModal()">キャンセル</button>
+                            <button type="submit" class="action-btn-detail" style="background: #166534; color: white; width: 240px; font-weight: bold; height: 42px;">注文書を発行して登録</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    `;
+
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+    generateOrderNumber('P'); // 初期表示はP番
+}
+
+// 在庫チェックロジック
+async function checkInventory(partsName) {
+    if (!partsName) return;
+    try {
+        const { data, error } = await getSupabaseClient()
+            .from('t_materialcode')
+            .select('materialname, stockquantity')
+            .ilike('materialname', `%${partsName}%`)
+            .gt('stockquantity', 0)
+            .limit(1);
+        
+        const alertEl = document.getElementById('inventory-alert');
+        if (!error && data && data.length > 0) {
+            document.getElementById('inventory-msg').textContent = `在庫に「${data[0].materialname}」が ${data[0].stockquantity} 個あります。払い出しますか？`;
+            alertEl.style.display = 'block';
+        } else {
+            alertEl.style.display = 'none';
+        }
+    } catch (e) {
+        console.warn('在庫チェックに失敗しました', e);
+    }
+}
+
+// 注文番号生成ロジック
+async function generateOrderNumber(type) {
+    const orderNoInput = document.getElementById('reg-OrderNo');
+    const prefix = type === 'A' ? 'A' : 'P';
+    const year = new Date().getFullYear().toString().substring(2); // 例: 24
+    
+    try {
+        // 最新の番号を検索してインクリメント
+        const { data, error } = await getSupabaseClient()
+            .from('t_purchaseparts')
+            .select('OrderNo')
+            .like('OrderNo', `${prefix}${year}%`)
+            .order('OrderNo', { ascending: false })
+            .limit(1);
+            
+        let nextNum = 1;
+        if (!error && data && data.length > 0) {
+            const lastNo = data[0].OrderNo;
+            const lastNum = parseInt(lastNo.substring(3));
+            if (!isNaN(lastNum)) nextNum = lastNum + 1;
+        }
+        
+        orderNoInput.value = `${prefix}${year}${nextNum.toString().padStart(5, '0')}`;
+    } catch (e) {
+        orderNoInput.value = `${prefix}${year}00001`;
+    }
+}
+
+function closePurchaseOrderModal() {
+    const modal = document.getElementById('purchase-order-modal');
+    if (modal) modal.remove();
+}
+
+function useInventory() {
+    alert('在庫引き当てモードに切り替えました。発注数は0（または予備分のみ）に調整してください。');
+    document.getElementById('inventory-alert').style.background = '#dcfce7';
+    document.getElementById('inventory-alert').style.borderColor = '#bbf7d0';
+    document.getElementById('inventory-alert').style.color = '#166534';
+}
+
+window.openPurchaseOrderModal = openPurchaseOrderModal;
+window.closePurchaseOrderModal = closePurchaseOrderModal;
+window.checkInventory = checkInventory;
+window.generateOrderNumber = generateOrderNumber;
+window.useInventory = useInventory;

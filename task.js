@@ -92,13 +92,17 @@ function renderTasks() {
         
         // 優先度アイコン
         const priorityIcons = {
-            low: '🟢',
-            medium: '🟡',
-            high: '🔴'
+            low: '<i class="fas fa-circle" style="color: #2ecc71; font-size: 10px;"></i>',
+            medium: '<i class="fas fa-circle" style="color: #f1c40f; font-size: 10px;"></i>',
+            high: '<i class="fas fa-circle" style="color: #e74c3c; font-size: 10px;"></i>'
         };
         
         // ステータスアイコン
-        const statusIcon = task.completed ? '✅' : (task.status === 'in-progress' ? '🔄' : '📝');
+        const statusIcon = task.completed ? 
+            '<i class="fas fa-check-circle" style="color: #2ecc71;"></i>' : 
+            (task.status === 'in-progress' ? 
+                '<i class="fas fa-spinner fa-spin" style="color: #3498db;"></i>' : 
+                '<i class="fas fa-tasks" style="color: #95a5a6;"></i>');
         
         taskCard.innerHTML = `
             <div class="task-card-header">
@@ -168,13 +172,13 @@ function renderTasks() {
 
     // 空の場合はメッセージを表示（カウントは表示したまま）
     if (pendingCount === 0 && kanbanPending.children.length === 0) {
-        kanbanPending.innerHTML = '<div class="kanban-empty">✨ タスクがありません</div>';
+        kanbanPending.innerHTML = '<div class="kanban-empty"><i class="fas fa-magic" style="margin-right: 8px; opacity: 0.5;"></i> タスクがありません</div>';
     }
     if (inProgressCount === 0 && kanbanInProgress.children.length === 0) {
-        kanbanInProgress.innerHTML = '<div class="kanban-empty">✨ タスクがありません</div>';
+        kanbanInProgress.innerHTML = '<div class="kanban-empty"><i class="fas fa-magic" style="margin-right: 8px; opacity: 0.5;"></i> タスクがありません</div>';
     }
     if (completedCount === 0 && kanbanCompleted.children.length === 0) {
-        kanbanCompleted.innerHTML = '<div class="kanban-empty">✨ タスクがありません</div>';
+        kanbanCompleted.innerHTML = '<div class="kanban-empty"><i class="fas fa-magic" style="margin-right: 8px; opacity: 0.5;"></i> タスクがありません</div>';
     }
     
     // ドラッグ&ドロップ機能を設定
